@@ -5,7 +5,7 @@ inline std::uintptr_t clientAddress = 0;
 inline std::uintptr_t engine = 0;
 inline bool playerhealth = true;
 inline float EnemyGlowColor[]{1.f, 0.f, 0.f};
-inline bool playerespfullbox = false;
+inline bool Enemyplayeresp = false;
 inline bool playerespcorner = false;
 inline bool radar = false;
 inline bool Bhop = false;
@@ -41,5 +41,10 @@ inline bool FpsCounter = false;
 inline bool Headmarker = false;
 inline float headMakerColor[3] = {0.f, 1.f, 0.f};
 inline float Headmarkersize = 3.f;
+inline float EspBackGroundColor[4] = {0.f, 0.1f, 0.f, 0.2f}; 
+
+inline bool DrawTeamBox = false;
+inline bool DrawSkeleton = false;
+
 
 }  // namespace globals
