@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <d3d11.h>
 #include <dwmapi.h>
 
@@ -7,22 +7,20 @@
 #include <iostream>
 #include <string>
 
+#include "../Headers/C_color.h"
+#include "../Headers/Globals.h"
+#include "../Headers/Math.h"
+#include "../Headers/Memory.h"
+#include "../Headers/Offsets.h"
+#include "../Headers/Styles.h"
+#include "../ImGui/imgui.h"
+#include "../ImGui/imgui_impl_dx11.h"
+#include "../ImGui/imgui_impl_win32.h"
+#include "../ImGui/imgui_internal.h"
 #include "Math.h"
-
+#include "array"
 #include "io.h"
 #include "winbase.h"
-
-#include "array"
-#include "../Headers/Memory.h"
-#include "../ImGui/imgui.h"
-#include "../ImGui/imgui_impl_win32.h"
-#include "../ImGui/imgui_impl_dx11.h"
-#include "../Headers/Styles.h"
-#include "../Headers/Globals.h"
-#include "../Headers/Offsets.h"
-#include "../Headers/Math.h"
-#include "../Headers/C_color.h"
-#include "../ImGui/imgui_internal.h"
 
 bool menu_open;
 
@@ -232,7 +230,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
     if (GetAsyncKeyState(VK_INSERT) & 1) menu_open ^= 1;
 
     if (menu_open) {
-      ImGui::SetNextWindowSize({620, 380});  // actual ImGui window
+      ImGui::SetNextWindowSize({700, 450});  // actual ImGui window
 
       ImVec4 borderColor =
           ImColor::HSV(ImGui::GetTime() / 10, 0.6f, 0.6f).Value;
@@ -320,7 +318,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
         switch (current_tab) {
           case 0:  // aimbot
             ImGui::Checkbox("Fov circle", &globals::Fov);
-            ImGui::SameLine(0, 25);
+            ImGui::SameLine(0, 70);
             ImGui::ColorEdit4("Fov Circle Color", globals::FovColor,
                               ImGuiColorEditFlags_NoInputs);
 
@@ -330,29 +328,65 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
             break;
 
           case 1:  // ESP and overlay
-            ImGui::Checkbox("player esp box", &globals::Enemyplayeresp);
-
-            ImGui::Checkbox("player esp Background",
-                            &globals::PlayerEspBackGround);
-            ImGui::SameLine(0, 50);
-            ImGui::ColorEdit4("Player esp background color",
-                              globals::EspBackGroundColor,
+          {
+            // Enemy ESP
+            ImGui::Checkbox("Enemy Player ESP", &globals::EnemyEsp);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Enemy ESP Color", globals::EnemyEspColor,
                               ImGuiColorEditFlags_NoInputs);
 
-            ImGui::Checkbox("Player Health", &globals::PlayerHealth);
-            ImGui::SameLine(0, 96);
-            ImGui::ColorEdit4("Player Health Color", globals::PlayerHealthColor,
+            // Teammate ESP
+            ImGui::Checkbox("Teammate ESP", &globals::TeammateEsp);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Friendly ESP Color", globals::TeammateEspColor,
                               ImGuiColorEditFlags_NoInputs);
 
-
-             ImGui::Checkbox("Bone Esp", &globals::BoneEsp);
-            ImGui::SameLine(0, 96);
-            ImGui::ColorEdit4("Bone Esp Color", globals::BoneEspColor,
+            // ESP background
+            ImGui::Checkbox("Friendly ESP Background",
+                            &globals::TeammateEspBackground);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Friendly ESP Background Color",
+                              globals::TeammateEspColor,
                               ImGuiColorEditFlags_NoInputs);
-            ImGui::SliderFloat("Bone Esp Thickness", &globals::BoneEspThickness, 0.f, 90.f,
-                               "%.0f");
 
+            ImGui::Checkbox("Enemy ESP Background",
+                            &globals::EnemyEspBackground);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Enemy ESP Background Color",
+                              globals::EnemyEspBackGroundColor,
+                              ImGuiColorEditFlags_NoInputs);
+
+            // Health ESP
+            ImGui::Checkbox("Friendly Player Health", &globals::TeammateHealth);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Player Health Color",
+                              globals::TeammateHealthColor,
+                              ImGuiColorEditFlags_NoInputs);
+
+            ImGui::Checkbox("Enemy Player Health", &globals::EnemyHealth);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Player Health Color", globals::EnemyHealthColor,
+                              ImGuiColorEditFlags_NoInputs);
+
+            // Bone ESP
+            ImGui::Checkbox("Friendly Bone ESP", &globals::FriendlyBones);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Friendly Bone ESP Color",
+                              globals::TeammateBoneColor,
+                              ImGuiColorEditFlags_NoInputs);
+            ImGui::SliderFloat("Friendly Bone ESP Thickness",
+                               &globals::BoneEspThickness, 0.f, 90.f, "%.0f");
+
+            ImGui::Checkbox("Enemy Bone ESP", &globals::EnemyBones);
+            ImGui::SameLine(220);
+            ImGui::ColorEdit4("Enemy Bone ESP Color", globals::EnemyBoneColor,
+                              ImGuiColorEditFlags_NoInputs);
+            ImGui::SliderFloat("Enemy Bone ESP Thickness",
+                               &globals::BoneEspThickness, 0.f, 90.f, "%.0f");
+
+            ImGui::Checkbox("Bone Debug", &globals::BoneDebug);
             break;
+          }
 
           case 2:  // chams and glow
 
@@ -372,6 +406,8 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
     }
     // cheat stuff goes above render
 
+    auto entityList = mem.Read<uintptr_t>(client + offsets::EntityList);
+
     const auto localPlayerpawn =
         mem.Read<std::uintptr_t>(client + offsets::LocalPlayerPawn);
     // if (!localPlayerpawn) std::cout << "player found";      // debug stuff
@@ -383,19 +419,6 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
         mem.Read<ViewMatrix_t>(client + offsets::ViewMatrix);
 
     int localTeam = mem.Read<int>(client + offsets::m_iTeamNum);
-    bool drawTeammates = globals::DrawTeamBox;  // user option
-
-
-
-    struct BoneLine {
-      Vector3 start;
-      Vector3 end;
-    };
-
-    BoneLine skeleton[64];  // adjust size if you have more bones
-
-
-
 
     for (int i = 0; i < 64; i++) {
       uintptr_t listEntry =
@@ -417,7 +440,6 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
           mem.Read<uintptr_t>(listEntryPawn + 0x78 * (hPawn & 0x1FF));
       if (!pPawn) continue;
 
-      // Skip local player entirely
       if (pPawn == localPlayerpawn) continue;
 
       int health = mem.Read<int>(pPawn + offsets::m_iHealth);
@@ -425,13 +447,14 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
 
       if (health <= 0 || health > 100) continue;
 
-      // Skip enemies if drawTeammates is false
-      if (!drawTeammates && team == localTeam) continue;
+      int localTeam = mem.Read<int>(localPlayerpawn + offsets::m_iTeamNum);
 
-      // Skip enemies if drawTeammates is true but it's local player
-      if (team == localTeam && !globals::Enemyplayeresp) continue;
+      uintptr_t list_entry2 =
+          mem.Read<uintptr_t>(entityList + 0x8 * ((pPawn & 0x7FFF) >> 9) + 16);
 
-      // Now you can safely draw boxes
+      uintptr_t pCSPlayerPawnPtr =
+          mem.Read<uintptr_t>(list_entry2 + 120 * (pPawn & 0x1FF));
+
       Vector3 origin = mem.Read<Vector3>(pPawn + offsets::m_vOldOrigin);
       Vector3 head = {origin.x, origin.y, origin.z + 75.f};
 
@@ -445,52 +468,104 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
       ImVec2 bottomRight(screenHeadPos.x + width / 2.f,
                          screenHeadPos.y + height);
 
-      if (globals::Enemyplayeresp) {
-        backgrounddraw->AddRect(topLeft, bottomRight, IM_COL32(255, 0, 0, 255));
+      // Box ESP
+      if (team == localTeam) {
+        if (globals::TeammateEsp) {
+          backgrounddraw->AddRect(topLeft, bottomRight,
+                                  ImColor(globals::TeammateEspColor[0],
+                                          globals::TeammateEspColor[1],
+                                          globals::TeammateEspColor[2],
+                                          globals::TeammateEspColor[3]));
+        }
+      } else {
+        if (globals::EnemyEsp) {
+          backgrounddraw->AddRect(
+              topLeft, bottomRight,
+              ImColor(globals::EnemyEspColor[0], globals::EnemyEspColor[1],
+                      globals::EnemyEspColor[2], globals::EnemyEspColor[3]));
+        }
       }
 
-      if (globals::PlayerEspBackGround) {
-        backgrounddraw->AddRectFilled(topLeft, bottomRight,
-                                      ImColor(globals::EspBackGroundColor[0],
-                                              globals::EspBackGroundColor[1],
-                                              globals::EspBackGroundColor[2],
-                                              globals::EspBackGroundColor[3]));
+      // Background ESP
+      if (team == localTeam) {
+        if (globals::TeammateEspBackground) {
+          backgrounddraw->AddRectFilled(
+              topLeft, bottomRight,
+              ImColor(globals::FriendlyEspBackGroundColor[0],
+                      globals::FriendlyEspBackGroundColor[1],
+                      globals::FriendlyEspBackGroundColor[2],
+                      globals::FriendlyEspBackGroundColor[3]));
+        }
+      } else {
+        if (globals::EnemyEspBackground) {
+          backgrounddraw->AddRectFilled(
+              topLeft, bottomRight,
+              ImColor(globals::EnemyEspBackGroundColor[0],
+                      globals::EnemyEspBackGroundColor[1],
+                      globals::EnemyEspBackGroundColor[2],
+                      globals::EnemyEspBackGroundColor[3]));
+        }
       }
 
       auto entity_hp = mem.Read<int>(pPawn + offsets::m_iHealth);
 
-      if (globals::PlayerHealth) {
-        // Draw health digits
-        std::string hp_text = std::to_string(entity_hp);
-        ImVec2 text_size = ImGui::CalcTextSize(hp_text.c_str());
+      if (team == localTeam) {
+        if (globals::TeammateHealth) {
+          std::string hp_text = std::to_string(entity_hp);
+          ImVec2 text_size = ImGui::CalcTextSize(hp_text.c_str());
 
-        ImGui::GetBackgroundDrawList()->AddText(
-            {topLeft.x - text_size.x - 6, topLeft.y - 3},
-            ImColor(globals::PlayerHealthColor[0],
-                    globals::PlayerHealthColor[1],
-                    globals::PlayerHealthColor[2]),
-            hp_text.c_str());
+          ImGui::GetBackgroundDrawList()->AddText(
+              {topLeft.x - text_size.x - 6, topLeft.y - 3},
+              ImColor(globals::TeammateHealthColor[0],
+                      globals::TeammateHealthColor[1],
+                      globals::TeammateHealthColor[2],
+                      globals::TeammateHealthColor[3]),
+              hp_text.c_str());
 
-        // Draw vertical health bar
-        float health_height = bottomRight.y - topLeft.y;
-        float filled_height = health_height * (entity_hp / 100.f);
+          float health_height = bottomRight.y - topLeft.y;
+          float filled_height = health_height * (entity_hp / 100.f);
 
-        // Health bar background
-        backgrounddraw->AddRectFilled({topLeft.x - 6, topLeft.y},
-                                      {topLeft.x - 4, bottomRight.y},
-                                      ImColor(30, 30, 30, 255));
+          backgrounddraw->AddRectFilled({topLeft.x - 6, topLeft.y},
+                                        {topLeft.x - 4, bottomRight.y},
+                                        ImColor(30, 30, 30, 255));
 
-        // Health bar foreground
-        c_color col_health =
-            c_color::from_hsb((entity_hp / 100.f) * 0.33f, 1, 1);
-        backgrounddraw->AddRectFilled(
-            {topLeft.x - 6, bottomRight.y - filled_height},
-            {topLeft.x - 4, bottomRight.y},
-            ImColor(col_health.r, col_health.g, col_health.b, col_health.a));
+          // Foreground gradient
+          c_color col_health =
+              c_color::from_hsb((entity_hp / 100.f) * 0.33f, 1, 1);
+          backgrounddraw->AddRectFilled(
+              {topLeft.x - 6, bottomRight.y - filled_height},
+              {topLeft.x - 4, bottomRight.y},
+              ImColor(col_health.r, col_health.g, col_health.b, col_health.a));
+        }
+      } else {
+        if (globals::EnemyHealth) {
+          std::string hp_text = std::to_string(entity_hp);
+          ImVec2 text_size = ImGui::CalcTextSize(hp_text.c_str());
+
+          ImGui::GetBackgroundDrawList()->AddText(
+              {topLeft.x - text_size.x - 6, topLeft.y - 3},
+              ImColor(
+                  globals::EnemyHealthColor[0], globals::EnemyHealthColor[1],
+                  globals::EnemyHealthColor[2], globals::EnemyHealthColor[3]),
+              hp_text.c_str());
+
+          float health_height = bottomRight.y - topLeft.y;
+          float filled_height = health_height * (entity_hp / 100.f);
+
+          backgrounddraw->AddRectFilled({topLeft.x - 6, topLeft.y},
+                                        {topLeft.x - 4, bottomRight.y},
+                                        ImColor(30, 30, 30, 255));
+
+          // Foreground gradient
+          c_color col_health =
+              c_color::from_hsb((entity_hp / 100.f) * 0.33f, 1, 1);
+          backgrounddraw->AddRectFilled(
+              {topLeft.x - 6, bottomRight.y - filled_height},
+              {topLeft.x - 4, bottomRight.y},
+              ImColor(col_health.r, col_health.g, col_health.b, col_health.a));
+        }
       }
 
-      
- 
       uintptr_t gameSceneNode =
           mem.Read<uintptr_t>(pPawn + offsets::m_pGameSceneNode);
       if (!gameSceneNode) {
@@ -498,18 +573,32 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
         continue;
       }
 
-
-      // Read bone array (enough bones for full body)
       uintptr_t boneArrayPtr =
           mem.Read<uintptr_t>(gameSceneNode + offsets::m_modelState + 0x80);
-      
+
       std::array<CBoneData, 64> bones =
           mem.Read<std::array<CBoneData, 64>>(boneArrayPtr);
-    
-      
 
+      if (globals::BoneDebug) {
+        for (size_t i = 0; i < bones.size(); ++i) {
+          Vector3 world = bones[i].location;
+          Vector3 screen = world.WorldToScreen(view_matrix);
 
-      if (globals::BoneEsp) {   //2 fucking days right there i'm an idiot   <-
+          if (screen.z < 0.01f) continue;  // skip off-screen bones
+
+          std::string boneIndex = std::to_string(i);
+
+          // Draw the bone index number
+          ImGui::GetBackgroundDrawList()->AddText(ImVec2(screen.x, screen.y),
+                                                  IM_COL32(255, 255, 255, 255),
+                                                  boneIndex.c_str());
+        }
+      }
+
+      bool isTeammate = (team == localTeam);
+
+      if ((isTeammate && globals::FriendlyBones) ||
+          (!isTeammate && globals::EnemyBones)) {
         for (size_t i = 0;
              i < sizeof(BoneConnections) / sizeof(BoneConnections[0]); ++i) {
           int b1 = BoneConnections[i].bone1;
@@ -526,187 +615,139 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
 
           if (screen1.z < 0.01f || screen2.z < 0.01f) continue;
 
-          backgrounddraw->AddLine(
-              ImVec2(screen1.x, screen1.y), ImVec2(screen2.x, screen2.y),
-              ImColor(globals::BoneEspColor[0], globals::BoneEspColor[1],
-                      globals::BoneEspColor[2], globals::BoneEspColor[3]),
-              globals::BoneEspThickness  // just pass the variable
-          );
-        }
+          ImColor lineColor = isTeammate
+                                  ? ImColor(globals::TeammateBoneColor[0],
+                                            globals::TeammateBoneColor[1],
+                                            globals::TeammateBoneColor[2],
+                                            globals::TeammateBoneColor[3])
+                                  : ImColor(globals::EnemyBoneColor[0],
+                                            globals::EnemyBoneColor[1],
+                                            globals::EnemyBoneColor[2],
+                                            globals::EnemyBoneColor[3]);
 
-     
+          backgrounddraw->AddLine(ImVec2(screen1.x, screen1.y),
+                                  ImVec2(screen2.x, screen2.y), lineColor,
+                                  globals::BoneEspThickness);
+        }
       }
-
-
-
-
-
-
-  
-
-
-
-
-
-
-
-
     }
-    
 
-    
-    
+    if (globals::FpsCounter) {
+      ImDrawList* fps = ImGui::GetBackgroundDrawList();
+      int Framerate = round(ImGui::GetIO().Framerate);
+      std::string StatStrings = "FPS: " + std::to_string(Framerate);
+      void get_fps();
 
-  
+      fps->AddText(ImGui::GetFont(), 15, ImVec2(50, 50), ImColor(255, 255, 255),
+                   StatStrings.c_str());
+    }
 
+    if (globals::Fov) {
+      ImVec2 center = {960, 540};
+      float radius = globals::AimbotFovSize * 3.141592;
+      int num_segments = 135;
+      float thickness = 2.0f;
 
+      ImColor light_blue(0.3f, 0.8f, 1.0f);
+      ImColor blue(0.0f, 0.0f, 1.0f);
 
+      float time = static_cast<float>(ImGui::GetTime());
 
+      for (int i = 0; i < num_segments; ++i) {
+        float angle_start = (2 * IM_PI * i) / num_segments;
+        float angle_end = (2 * IM_PI * (i + 3)) / num_segments;
 
+        ImVec2 p1 = {center.x + radius * cos(angle_start),
+                     center.y + radius * sin(angle_start)};
+        ImVec2 p2 = {center.x + radius * cos(angle_end),
+                     center.y + radius * sin(angle_end)};
 
+        float spin_factor = sin(time + (i * 0.05f));
+        float t = (spin_factor + 1.0f) * 0.5f;
 
+        float r = light_blue.Value.x * (1.0f - t) + blue.Value.x * t;
+        float g = light_blue.Value.y * (1.0f - t) + blue.Value.y * t;
+        float b = light_blue.Value.z * (1.0f - t) + blue.Value.z * t;
 
+        ImColor current_color(r, g, b);
 
+        backgrounddraw->AddLine(p1, p2, current_color, thickness);
+      }
+    }
 
+    if (globals::watamark) {
+      const char* watermarkText = "Phil was here | priv secret cheat";
+      ImVec2 textSize = ImGui::CalcTextSize(watermarkText);
 
+      // Position and padding
+      const ImVec2 backgroundPos(1600.0f, 16.0f);  // Top-right-ish
+      const float padding = 8.0f;
+      const ImVec2 backgroundSize(textSize.x + 2.0f * padding,
+                                  textSize.y + padding + 4.0f);
+      const float cornerRadius = 6.0f;
 
+      ImVec4 bgColor(0.1f, 0.1f, 0.1f,
+                     0.85f);  // Dark gray, semi-transparent, background
 
+      // Draw rounded background
+      backgrounddraw->AddRectFilled(backgroundPos,
+                                    ImVec2(backgroundPos.x + backgroundSize.x,
+                                           backgroundPos.y + backgroundSize.y),
+                                    ImColor(bgColor), cornerRadius);
 
+      // Rainbow text color
+      float time = ImGui::GetTime();
+      ImVec4 textColor(0.6f + 0.4f * sin(time),           // Red
+                       0.6f + 0.4f * sin(time + 2.094f),  // Green (120Â° shift)
+                       0.6f + 0.4f * sin(time + 4.188f),  // Blue (240Â° shift)
+                       1.0f                               //  alpha
+      );
 
+      // Text position with shadow
+      ImVec2 shadowPos(backgroundPos.x + padding + 1.0f,
+                       backgroundPos.y + padding / 2.0f + 1.0f);
+      ImVec2 textPos(backgroundPos.x + padding,
+                     backgroundPos.y + padding / 2.0f);
 
+      backgrounddraw->AddText(shadowPos, ImColor(0.0f, 0.0f, 0.0f, 0.5f),
+                              watermarkText);  // Shadow
+      backgrounddraw->AddText(textPos, ImColor(textColor),
+                              watermarkText);  // Main text
+    }
 
+    ImGui::Render();
+    constexpr float clear_color[4] = {0.f, 0.f, 0.f, 0.f};
+    device_context->OMSetRenderTargets(1U, &render_target_view, nullptr);
+    device_context->ClearRenderTargetView(render_target_view, clear_color);
 
+    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-
-
-
-
-
-
-
-
-
-
-        if (globals::FpsCounter) {
-          ImDrawList* fps = ImGui::GetBackgroundDrawList();
-          int Framerate = round(ImGui::GetIO().Framerate);
-          std::string StatStrings = "FPS: " + std::to_string(Framerate);
-          void get_fps();
-
-          fps->AddText(ImGui::GetFont(), 15, ImVec2(50, 50),
-                       ImColor(255, 255, 255), StatStrings.c_str());
-        }
-
-        if (globals::Fov) {
-          ImVec2 center = {960, 540};
-          float radius = globals::AimbotFovSize * 3.141592;
-          int num_segments = 135;
-          float thickness = 2.0f;
-
-          ImColor light_blue(0.3f, 0.8f, 1.0f);
-          ImColor blue(0.0f, 0.0f, 1.0f);
-
-          float time = static_cast<float>(ImGui::GetTime());
-
-          for (int i = 0; i < num_segments; ++i) {
-            float angle_start = (2 * IM_PI * i) / num_segments;
-            float angle_end = (2 * IM_PI * (i + 3)) / num_segments;
-
-            ImVec2 p1 = {center.x + radius * cos(angle_start),
-                         center.y + radius * sin(angle_start)};
-            ImVec2 p2 = {center.x + radius * cos(angle_end),
-                         center.y + radius * sin(angle_end)};
-
-            float spin_factor = sin(time + (i * 0.05f));
-            float t = (spin_factor + 1.0f) * 0.5f;
-
-            float r = light_blue.Value.x * (1.0f - t) + blue.Value.x * t;
-            float g = light_blue.Value.y * (1.0f - t) + blue.Value.y * t;
-            float b = light_blue.Value.z * (1.0f - t) + blue.Value.z * t;
-
-            ImColor current_color(r, g, b);
-
-            backgrounddraw->AddLine(p1, p2, current_color, thickness);
-          }
-        }
-
-        if (globals::watamark) {
-          const char* watermarkText = "Phil was here | priv secret cheat";
-          ImVec2 textSize = ImGui::CalcTextSize(watermarkText);
-
-          // Position and padding
-          const ImVec2 backgroundPos(1600.0f, 16.0f);  // Top-right-ish
-          const float padding = 8.0f;
-          const ImVec2 backgroundSize(textSize.x + 2.0f * padding,
-                                      textSize.y + padding + 4.0f);
-          const float cornerRadius = 6.0f;
-
-          ImVec4 bgColor(0.1f, 0.1f, 0.1f,
-                         0.85f);  // Dark gray, semi-transparent, background
-
-          // Draw rounded background
-          backgrounddraw->AddRectFilled(
-              backgroundPos,
-              ImVec2(backgroundPos.x + backgroundSize.x,
-                     backgroundPos.y + backgroundSize.y),
-              ImColor(bgColor), cornerRadius);
-
-          // Rainbow text color
-          float time = ImGui::GetTime();
-          ImVec4 textColor(
-              0.6f + 0.4f * sin(time),           // Red
-              0.6f + 0.4f * sin(time + 2.094f),  // Green (120° shift)
-              0.6f + 0.4f * sin(time + 4.188f),  // Blue (240° shift)
-              1.0f                               //  alpha
-          );
-
-          // Text position with shadow
-          ImVec2 shadowPos(backgroundPos.x + padding + 1.0f,
-                           backgroundPos.y + padding / 2.0f + 1.0f);
-          ImVec2 textPos(backgroundPos.x + padding,
-                         backgroundPos.y + padding / 2.0f);
-
-          backgrounddraw->AddText(shadowPos, ImColor(0.0f, 0.0f, 0.0f, 0.5f),
-                                  watermarkText);  // Shadow
-          backgrounddraw->AddText(textPos, ImColor(textColor),
-                                  watermarkText);  // Main text
-        }
-      
-
-      ImGui::Render();
-      constexpr float clear_color[4] = {0.f, 0.f, 0.f, 0.f};
-      device_context->OMSetRenderTargets(1U, &render_target_view, nullptr);
-      device_context->ClearRenderTargetView(render_target_view, clear_color);
-
-      ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-      swap_chain->Present(0U, 0U);
+    swap_chain->Present(0U, 0U);
   }
 
-    void ImGui_ImplDX11_Shutdown();
-    void ImGui_ImplWin32_Shutdown();
+  void ImGui_ImplDX11_Shutdown();
+  void ImGui_ImplWin32_Shutdown();
 
-    ImGui::DestroyContext();
+  ImGui::DestroyContext();
 
-    if (swap_chain) {
-      swap_chain->Release();
-    }
+  if (swap_chain) {
+    swap_chain->Release();
+  }
 
-    if (device_context) {
-      device_context->Release();
-    }
+  if (device_context) {
+    device_context->Release();
+  }
 
-    if (device) {
-      device->Release();
-    }
+  if (device) {
+    device->Release();
+  }
 
-    if (render_target_view) {
-      render_target_view->Release();
-    }
+  if (render_target_view) {
+    render_target_view->Release();
+  }
 
-    DestroyWindow(window);
-    UnregisterClassW(wc.lpszClassName, wc.hInstance);
+  DestroyWindow(window);
+  UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
-    return 0;
+  return 0;
 }
-  
