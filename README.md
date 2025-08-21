@@ -4,4 +4,4 @@
 
 19 aug 2025 -> Finished skeleton esp -> that was aids. 
 
-21 aug 2025 -> Worked on Menu -> spent all fucking day figuring out how to load an image with dx11 -_- 
+21 aug 2025 -> Worked on Menu -> figuring out how to load an image with dx11 was aids -_- 
