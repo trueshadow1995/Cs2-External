@@ -76,8 +76,8 @@ inline bool TeammateEspBackground = false;
 
 inline float EnemyEspColor[4] = {1.f, 0.f, 0.f, 1.f};     // red
 inline float TeammateEspColor[4] = {0.f, 1.f, 0.f, 1.f};  // green
-inline float EnemyEspBackGroundColor[4] = {1.f, 0.f, 0.f, 0.3f};
-inline float FriendlyEspBackGroundColor[4] = {0.f, 1.f, 0.f, 0.3f};
+inline float EnemyEspBackGroundColor[4] = {1.f, 0.f, 0.f, 60};
+inline float FriendlyEspBackGroundColor[4] = {0.f, 1.f, 0.f, 60};
 
 inline bool BoneDebug = false;
 

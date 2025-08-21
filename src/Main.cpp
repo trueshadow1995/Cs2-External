@@ -1,12 +1,10 @@
 ﻿#pragma once
 #include <d3d11.h>
 #include <dwmapi.h>
-
 #include <array>
 #include <format>
 #include <iostream>
 #include <string>
-
 #include "../Headers/C_color.h"
 #include "../Headers/Globals.h"
 #include "../Headers/Math.h"
@@ -17,15 +15,18 @@
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
 #include "../ImGui/imgui_internal.h"
-#include "Math.h"
-#include "array"
-#include "io.h"
-#include "winbase.h"
+#include <D3DX11.h>
+#include "../Headers/LogoHelper.h"
+#include "../Headers/EspHelper.h"
+#include "../Headers/HealBarHelper.h"
+#include "../Headers/BoneHelper.h"
+
+
+
 
 bool menu_open;
 
-// made by: phil, helped by: ntoes,lilegg,spyder,physical ! :D
-const auto memory = Memory{"cs2.exe"};
+
 bool isRunning = true;
 inline float fixed_radius = 8.0f;
 
@@ -45,6 +46,7 @@ LRESULT CALLBACK window_procedure(HWND window, UINT message, WPARAM w_param,
   }
   return DefWindowProc(window, message, w_param, l_param);
 }
+
 void create_directx(HWND window) {}
 
 INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
@@ -96,7 +98,6 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
   std::cout << std::format("CS2 Has Been Re-Fuckulated\n");
   std::cout << std::format("Process ID = {}\n", pid);
   std::cout << std::format("client ID = {}\n", pid);
-  // std::cout << std::format("") wtf ? ??
 
   const HANDLE handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, client);
 
@@ -147,6 +148,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
   constexpr D3D_FEATURE_LEVEL levels[2]{D3D_FEATURE_LEVEL_11_0,
                                         D3D_FEATURE_LEVEL_10_0};
 
+
   ID3D11Device* device{nullptr};
   ID3D11DeviceContext* device_context{nullptr};
   IDXGISwapChain* swap_chain{nullptr};
@@ -174,11 +176,13 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
 
   ImGui::CreateContext();
   Style();
+ 
+
+
 
   ImGui_ImplWin32_Init(window);
   ImGui_ImplDX11_Init(device, device_context);
-  /*ID3D11ShaderResourceView* logoTexture = nullptr;*/
-
+  LogoHelper::Load(device); //rip 12 hours loading a fucking png
   bool isRunning = true;
   while (isRunning) {
     MSG msg;
@@ -191,6 +195,11 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
       }
     }
 
+    // Check for Delete key to close the program
+    if (GetAsyncKeyState(VK_DELETE) & 0x8000) {
+      isRunning = false;
+    }
+
     if (!isRunning) {
       break;
     }
@@ -201,6 +210,10 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
 
     auto backgrounddraw = ImGui::GetBackgroundDrawList();
     auto foregrounddraw = ImGui::GetForegroundDrawList();
+   
+
+
+
 
     ImGuiIO& io = ImGui::GetIO();
     RECT rc;
@@ -224,8 +237,9 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
       io.MouseClicked[0] = true;
       io.MouseClickedPos[0].x = io.MousePos.x;
       io.MouseClickedPos[0].y = io.MousePos.y;
-    } else
+    } else {
       io.MouseDown[0] = false;
+    }
 
     if (GetAsyncKeyState(VK_INSERT) & 1) menu_open ^= 1;
 
@@ -236,7 +250,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
           ImColor::HSV(ImGui::GetTime() / 10, 0.6f, 0.6f).Value;
       ImVec4 borderGradientColorTopLeft =
           ImVec4(borderColor.x * 0.5f, borderColor.y * 0.5f,
-                 borderColor.z * 0.5f, borderColor.w);  // glowy color logic aha
+                 borderColor.z * 0.5f, borderColor.w);  // glowy color logic
       ImVec4 borderGradientColorBottomRight =
           ImVec4(borderColor.x * 0.7f, borderColor.y * 0.7f,
                  borderColor.z * 0.7f, borderColor.w);
@@ -246,22 +260,18 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
                        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
       ImGui::PopStyleColor();
 
-      // ImVec2 logoSize(100, 100);  // Initial size of the logo image
 
-      ImVec2 windowPos = ImGui::GetWindowPos();
+      
 
       ImGui::PushStyleColor(ImGuiCol_Border, borderGradientColorTopLeft);
 
       ImGui::PushStyleColor(ImGuiCol_BorderShadow,
                             borderGradientColorBottomRight);
-
-      // static ID3D11Texture2D* retardo = nullptr;  // made by ntoes -_-
-      // if (!retardo) {
-      // }
-
+      ImVec2 windowPos = ImGui::GetWindowPos();
       static int current_tab = 0;
       auto button_height = 48;
       auto button_length = 110;  // button shenanigans
+    
 
       ImGui::BeginChild("TabBar", ImVec2(128, ImGui::GetContentRegionAvail().y),
                         true, ImGuiWindowFlags_NoScrollbar);
@@ -271,12 +281,13 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
 
         ImGui::PushStyleColor(ImGuiCol_BorderShadow,
                               borderGradientColorBottomRight);
+ 
 
-        /*     ImGui::GetWindowDrawList()->AddImage(
-            Potleaf, windowPos,
-            ImVec2(windowPos.x + logoSize.x, windowPos.y + logoSize.y));
-        */
-
+        LogoHelper::Render();
+     
+       
+         
+   
         auto tabButton = [&](const char* label, int tab) {
           ImVec4 accentColor = ImVec4(0.08f, 0.53f, 0.79f, 0.50f);
 
@@ -284,6 +295,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
             ImGui::PushStyleColor(ImGuiCol_Button, accentColor);
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, accentColor);
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, accentColor);
+            
           }
 
           if (ImGui::Button(label, ImVec2(-1, button_height))) {
@@ -300,6 +312,9 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
         tabButton("Glow n Chams", 2);
         tabButton("Features", 3);
         tabButton("Skin Changer", 4);
+       
+        ImGui::Text("Press DEL to close");
+        
       }
       ImGui::EndChild();
 
@@ -312,6 +327,8 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
                         ImVec2(ImGui::GetContentRegionAvail().x,
                                ImGui::GetContentRegionAvail().y),
                         true);
+
+      
       ImGui::PopStyleColor(3);
 
       {
@@ -346,7 +363,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
                             &globals::TeammateEspBackground);
             ImGui::SameLine(220);
             ImGui::ColorEdit4("Friendly ESP Background Color",
-                              globals::TeammateEspColor,
+                              globals::FriendlyEspBackGroundColor,
                               ImGuiColorEditFlags_NoInputs);
 
             ImGui::Checkbox("Enemy ESP Background",
@@ -389,7 +406,6 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
           }
 
           case 2:  // chams and glow
-
             break;
 
           case 3:  // features
@@ -404,16 +420,14 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
       ImGui::PopStyleVar();
       ImGui::EndChild();
     }
-    // cheat stuff goes above render
 
+    // cheat stuff goes above render
     auto entityList = mem.Read<uintptr_t>(client + offsets::EntityList);
 
     const auto localPlayerpawn =
         mem.Read<std::uintptr_t>(client + offsets::LocalPlayerPawn);
-    // if (!localPlayerpawn) std::cout << "player found";      // debug stuff
 
     const auto entlist = mem.Read<std::uintptr_t>(client + offsets::EntityList);
-    // if (!entlist) std::cout << "entity list found";          //debug stuff
 
     ViewMatrix_t view_matrix =
         mem.Read<ViewMatrix_t>(client + offsets::ViewMatrix);
@@ -468,103 +482,16 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
       ImVec2 bottomRight(screenHeadPos.x + width / 2.f,
                          screenHeadPos.y + height);
 
-      // Box ESP
-      if (team == localTeam) {
-        if (globals::TeammateEsp) {
-          backgrounddraw->AddRect(topLeft, bottomRight,
-                                  ImColor(globals::TeammateEspColor[0],
-                                          globals::TeammateEspColor[1],
-                                          globals::TeammateEspColor[2],
-                                          globals::TeammateEspColor[3]));
-        }
-      } else {
-        if (globals::EnemyEsp) {
-          backgrounddraw->AddRect(
-              topLeft, bottomRight,
-              ImColor(globals::EnemyEspColor[0], globals::EnemyEspColor[1],
-                      globals::EnemyEspColor[2], globals::EnemyEspColor[3]));
-        }
-      }
-
-      // Background ESP
-      if (team == localTeam) {
-        if (globals::TeammateEspBackground) {
-          backgrounddraw->AddRectFilled(
-              topLeft, bottomRight,
-              ImColor(globals::FriendlyEspBackGroundColor[0],
-                      globals::FriendlyEspBackGroundColor[1],
-                      globals::FriendlyEspBackGroundColor[2],
-                      globals::FriendlyEspBackGroundColor[3]));
-        }
-      } else {
-        if (globals::EnemyEspBackground) {
-          backgrounddraw->AddRectFilled(
-              topLeft, bottomRight,
-              ImColor(globals::EnemyEspBackGroundColor[0],
-                      globals::EnemyEspBackGroundColor[1],
-                      globals::EnemyEspBackGroundColor[2],
-                      globals::EnemyEspBackGroundColor[3]));
-        }
-      }
-
+      
       auto entity_hp = mem.Read<int>(pPawn + offsets::m_iHealth);
 
-      if (team == localTeam) {
-        if (globals::TeammateHealth) {
-          std::string hp_text = std::to_string(entity_hp);
-          ImVec2 text_size = ImGui::CalcTextSize(hp_text.c_str());
+      ESPHelper::Render(mem, client, localPlayerpawn, view_matrix,
+                        backgrounddraw);
+      
+      HealthBarHelper::RenderHealth(mem, client, localPlayerpawn, view_matrix,
+                              backgrounddraw);
 
-          ImGui::GetBackgroundDrawList()->AddText(
-              {topLeft.x - text_size.x - 6, topLeft.y - 3},
-              ImColor(globals::TeammateHealthColor[0],
-                      globals::TeammateHealthColor[1],
-                      globals::TeammateHealthColor[2],
-                      globals::TeammateHealthColor[3]),
-              hp_text.c_str());
 
-          float health_height = bottomRight.y - topLeft.y;
-          float filled_height = health_height * (entity_hp / 100.f);
-
-          backgrounddraw->AddRectFilled({topLeft.x - 6, topLeft.y},
-                                        {topLeft.x - 4, bottomRight.y},
-                                        ImColor(30, 30, 30, 255));
-
-          // Foreground gradient
-          c_color col_health =
-              c_color::from_hsb((entity_hp / 100.f) * 0.33f, 1, 1);
-          backgrounddraw->AddRectFilled(
-              {topLeft.x - 6, bottomRight.y - filled_height},
-              {topLeft.x - 4, bottomRight.y},
-              ImColor(col_health.r, col_health.g, col_health.b, col_health.a));
-        }
-      } else {
-        if (globals::EnemyHealth) {
-          std::string hp_text = std::to_string(entity_hp);
-          ImVec2 text_size = ImGui::CalcTextSize(hp_text.c_str());
-
-          ImGui::GetBackgroundDrawList()->AddText(
-              {topLeft.x - text_size.x - 6, topLeft.y - 3},
-              ImColor(
-                  globals::EnemyHealthColor[0], globals::EnemyHealthColor[1],
-                  globals::EnemyHealthColor[2], globals::EnemyHealthColor[3]),
-              hp_text.c_str());
-
-          float health_height = bottomRight.y - topLeft.y;
-          float filled_height = health_height * (entity_hp / 100.f);
-
-          backgrounddraw->AddRectFilled({topLeft.x - 6, topLeft.y},
-                                        {topLeft.x - 4, bottomRight.y},
-                                        ImColor(30, 30, 30, 255));
-
-          // Foreground gradient
-          c_color col_health =
-              c_color::from_hsb((entity_hp / 100.f) * 0.33f, 1, 1);
-          backgrounddraw->AddRectFilled(
-              {topLeft.x - 6, bottomRight.y - filled_height},
-              {topLeft.x - 4, bottomRight.y},
-              ImColor(col_health.r, col_health.g, col_health.b, col_health.a));
-        }
-      }
 
       uintptr_t gameSceneNode =
           mem.Read<uintptr_t>(pPawn + offsets::m_pGameSceneNode);
@@ -578,59 +505,13 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
 
       std::array<CBoneData, 64> bones =
           mem.Read<std::array<CBoneData, 64>>(boneArrayPtr);
-
-      if (globals::BoneDebug) {
-        for (size_t i = 0; i < bones.size(); ++i) {
-          Vector3 world = bones[i].location;
-          Vector3 screen = world.WorldToScreen(view_matrix);
-
-          if (screen.z < 0.01f) continue;  // skip off-screen bones
-
-          std::string boneIndex = std::to_string(i);
-
-          // Draw the bone index number
-          ImGui::GetBackgroundDrawList()->AddText(ImVec2(screen.x, screen.y),
-                                                  IM_COL32(255, 255, 255, 255),
-                                                  boneIndex.c_str());
-        }
-      }
-
-      bool isTeammate = (team == localTeam);
-
-      if ((isTeammate && globals::FriendlyBones) ||
-          (!isTeammate && globals::EnemyBones)) {
-        for (size_t i = 0;
-             i < sizeof(BoneConnections) / sizeof(BoneConnections[0]); ++i) {
-          int b1 = BoneConnections[i].bone1;
-          int b2 = BoneConnections[i].bone2;
-
-          if (b1 < 0 || b1 >= (int)bones.size()) continue;
-          if (b2 < 0 || b2 >= (int)bones.size()) continue;
-
-          Vector3 world1 = bones[b1].location;
-          Vector3 world2 = bones[b2].location;
-
-          Vector3 screen1 = world1.WorldToScreen(view_matrix);
-          Vector3 screen2 = world2.WorldToScreen(view_matrix);
-
-          if (screen1.z < 0.01f || screen2.z < 0.01f) continue;
-
-          ImColor lineColor = isTeammate
-                                  ? ImColor(globals::TeammateBoneColor[0],
-                                            globals::TeammateBoneColor[1],
-                                            globals::TeammateBoneColor[2],
-                                            globals::TeammateBoneColor[3])
-                                  : ImColor(globals::EnemyBoneColor[0],
-                                            globals::EnemyBoneColor[1],
-                                            globals::EnemyBoneColor[2],
-                                            globals::EnemyBoneColor[3]);
-
-          backgrounddraw->AddLine(ImVec2(screen1.x, screen1.y),
-                                  ImVec2(screen2.x, screen2.y), lineColor,
-                                  globals::BoneEspThickness);
-        }
-      }
+   
+      BoneHelper::RenderBones(mem, pPawn, team, localTeam, view_matrix,
+                              backgrounddraw);
     }
+
+
+
 
     if (globals::FpsCounter) {
       ImDrawList* fps = ImGui::GetBackgroundDrawList();
@@ -725,8 +606,8 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
     swap_chain->Present(0U, 0U);
   }
 
-  void ImGui_ImplDX11_Shutdown();
-  void ImGui_ImplWin32_Shutdown();
+  ImGui_ImplDX11_Shutdown();
+  ImGui_ImplWin32_Shutdown();
 
   ImGui::DestroyContext();
 
@@ -745,7 +626,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
   if (render_target_view) {
     render_target_view->Release();
   }
-
+ 
   DestroyWindow(window);
   UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
