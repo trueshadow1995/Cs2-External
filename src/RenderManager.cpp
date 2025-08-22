@@ -3,6 +3,7 @@
 #include "../Headers/WaterMarkHelper.h"
 #include "../Headers/DX11Renderer.h"
 #include "../Headers/LogoHelper.h"
+#include "../Headers/HealBarHelper.h"
 
 
 

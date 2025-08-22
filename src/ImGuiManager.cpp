@@ -1,5 +1,5 @@
-#include <windows.h>        // for HWND, POINT, RECT, GetCursorPos, GetClientRect, ClientToScreen, etc.
-#include <cstdint>          // optional, for fixed-size types if you use them
+#include <windows.h>        
+#include <cstdint>         
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
 #include "../Headers/DX11Renderer.h"

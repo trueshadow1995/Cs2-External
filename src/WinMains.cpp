@@ -14,6 +14,7 @@
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
 
+
 bool globals::menu_open = true;
 bool running = true;
 
@@ -79,8 +80,7 @@ INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, INT) {
     io.MouseDown[0] = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
  
     // Render overlay ESP / visuals
-    RenderManager::RenderFrame();
-  ; 
+   
     // Render menu if toggled
     if (globals::menu_open) {
       Menu::Render();        // Your ImGui menu with tabs/buttons

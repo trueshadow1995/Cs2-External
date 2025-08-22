@@ -3,7 +3,7 @@
 #include <dwmapi.h>
 #include <windows.h>
 #include "../Headers/OverlayWindow.h"
-
+bool CounterStrike2 = "cs2.exe";
 
 HWND OverlayWindow::CreateOverlayWindow(HINSTANCE hInstance, int width,
                                         int height) {
