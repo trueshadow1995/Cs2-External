@@ -88,5 +88,5 @@ inline void Render(Memory& mem, uintptr_t client, uintptr_t localPlayerpawn,
     }
   }
 }
-}  // namespace ESPHelper
+} 
 

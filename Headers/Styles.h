@@ -8,10 +8,12 @@
 #include "../ImGui/imstb_truetype.h"
 #include "../Imgui/imgui.h"
 
-void Style() {
+namespace Styles {
+void Apply() {
+  ImGuiStyle& style = ImGui::GetStyle();
   ImGuiIO& io = ImGui::GetIO();
-  auto& style = ImGui::GetStyle();
   io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Bahnschrift.ttf", 15.0f);
+
   style.Alpha = 1.0f;
   style.WindowPadding = ImVec2(15, 15);
   style.WindowRounding = 10.f;
@@ -59,7 +61,8 @@ void Style() {
   style.Colors[ImGuiCol_FrameBgHovered] = ImColor(8, 53, 79, 150);  // accent 1
   style.Colors[ImGuiCol_FrameBgActive] = ImColor(8, 53, 79, 255);   // accent 0
 
-  // style.Colors[ ImGuiCol_ControlBg ] = ImVec4 ( 0.11f, 0.14f, 0.20f, 1.00f );
+  // style.Colors[ ImGuiCol_ControlBg ] = ImVec4 ( 0.11f, 0.14f,
+  // 0.20f, 1.00f );
   // //prim3
   //
   //  style.Colors[ ImGuiCol_ControlBgHovered ] = ImVec4 ( 0.30f,
@@ -129,8 +132,8 @@ void Style() {
   style.Colors[ImGuiCol_DragDropTarget] =
       ImColor(20, 148, 20, 255);  // accent 3
 
+     
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.07f, 0.5f, 0.07f,
                                               1.f));  // changes color of title
 }
-
-
+}  // namespace Styles

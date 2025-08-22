@@ -132,12 +132,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Headers\BoneHelper.h" />
+    <ClInclude Include="Headers\Bones.h" />
     <ClInclude Include="Headers\C_color.h" />
+    <ClInclude Include="Headers\Draw Functions.h" />
+    <ClInclude Include="Headers\DX11Renderer.h" />
     <ClInclude Include="Headers\EspHelper.h" />
     <ClInclude Include="Headers\Globals.h" />
     <ClInclude Include="Headers\HealBarHelper.h" />
+    <ClInclude Include="Headers\ImGuiManager.h" />
     <ClInclude Include="Headers\Logo.h" />
     <ClInclude Include="Headers\LogoHelper.h" />
+    <ClInclude Include="Headers\Menu.h" />
+    <ClInclude Include="Headers\MouseFunc.h" />
+    <ClInclude Include="Headers\OverlayWindow.h" />
+    <ClInclude Include="Headers\RenderManager.h" />
+    <ClInclude Include="Headers\WaterMarkHelper.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />
     <ClInclude Include="ImGui\imgui_impl_dx11.h" />
@@ -160,8 +169,17 @@
     <ClCompile Include="ImGui\imgui_impl_win32.cpp" />
     <ClCompile Include="ImGui\imgui_tables.cpp" />
     <ClCompile Include="ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="src\BoneESP.cpp" />
+    <ClCompile Include="src\DX11Renderer.cpp" />
+    <ClCompile Include="src\FpsCounter.cpp" />
+    <ClCompile Include="src\ImGuiManager.cpp" />
     <ClCompile Include="src\Logo.cpp" />
     <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\Menu.cpp" />
+    <ClCompile Include="src\OverlayWindow.cpp" />
+    <ClCompile Include="src\RenderManager.cpp" />
+    <ClCompile Include="src\WaterMark.cpp" />
+    <ClCompile Include="src\WinMains.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

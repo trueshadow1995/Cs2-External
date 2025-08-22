@@ -5,7 +5,6 @@ namespace globals {
 inline std::uintptr_t clientAddress = 0;
 inline std::uintptr_t engine = 0;
 inline bool playerhealth = true;
-inline float EnemyGlowColor[]{1.f, 0.f, 0.f};
 
 inline bool playerespcorner = false;
 inline bool radar = false;
@@ -28,7 +27,7 @@ inline float MyChamColor[]{1.0f, 1.0f, 1.0f};
 inline bool skinchanger = false;
 inline bool AimbotSmoothing = false;
 inline float Aimbotsmoothing = 5.f;
-inline bool watamark = false;
+inline bool WaterMark = false;
 inline float AimbotFovSize = 3.f;
 inline bool PlayerName = false;
 inline bool SnapLines = false;
@@ -60,11 +59,11 @@ inline float EnemyBoneColor[4] = {255.f, 0.f, 0.f, 255.f};     // red
 
 
 
-inline bool EnemyBones = false;
+inline bool EnemyBones = true;
 inline bool FriendlyBones = false;
 inline float BoneEspThickness = 2.0f;                 
 
-
+extern bool menu_open;
 
 
 
@@ -80,5 +79,10 @@ inline float EnemyEspBackGroundColor[4] = {1.f, 0.f, 0.f, 60};
 inline float FriendlyEspBackGroundColor[4] = {0.f, 1.f, 0.f, 60};
 
 inline bool BoneDebug = false;
+
+
+
+
+
 
 }  // namespace globals

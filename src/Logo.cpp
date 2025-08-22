@@ -31,7 +31,7 @@ void Render() {
     ImGui::Text("Logo failed to load");
   }
 }
-}  // namespace LogoHelper
+}  
 
 
 

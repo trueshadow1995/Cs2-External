@@ -16,7 +16,7 @@ constexpr std::ptrdiff_t ViewMatrix = 0x1E32830;
 
   constexpr std::ptrdiff_t dwLocalPlayerController = 0x1E1E798;
 
- constexpr std::ptrdiff_t m_pGameSceneNode = 0x330;  // CGameSceneNode*
+ constexpr std::ptrdiff_t m_pGameSceneNode = 0x330; 
 
 
    
@@ -24,6 +24,5 @@ constexpr std::ptrdiff_t ViewMatrix = 0x1E32830;
    constexpr std::ptrdiff_t m_modelState = 0x190;
    
    constexpr std::ptrdiff_t boneArrayOffset = 0x80;  // inside modelState
-
 
 }

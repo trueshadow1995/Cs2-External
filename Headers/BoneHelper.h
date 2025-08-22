@@ -2,12 +2,12 @@
 
 #include <d3d11.h>
 
-#include "../Headers/BoneHelper.h"
 #include "../Headers/Globals.h"
 #include "../Headers/Math.h"
 #include "../Headers/Memory.h"
 #include "../Headers/Offsets.h"
 #include "../ImGui/imgui.h"
+#include "../Headers/Bones.h"
 #include "array"
 
 namespace BoneHelper {
@@ -27,9 +27,6 @@ inline void RenderBones(Memory& mem, uintptr_t pPawn, int team, int localTeam,
 
   std::array<CBoneData, 64> bones =
       mem.Read<std::array<CBoneData, 64>>(boneArrayPtr);
-
-
-
 
   bool isTeammate = (team == localTeam);
 
@@ -73,7 +70,7 @@ inline void RenderBones(Memory& mem, uintptr_t pPawn, int team, int localTeam,
               : ImColor(globals::EnemyBoneColor[0], globals::EnemyBoneColor[1],
                         globals::EnemyBoneColor[2], globals::EnemyBoneColor[3]);
 
-      if (backgrounddraw)  // extra safety
+      if (backgrounddraw)
         backgrounddraw->AddLine(ImVec2(screen1.x, screen1.y),
                                 ImVec2(screen2.x, screen2.y), lineColor,
                                 globals::BoneEspThickness);

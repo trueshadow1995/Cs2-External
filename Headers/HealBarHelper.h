@@ -92,5 +92,5 @@ inline void RenderHealth(Memory& mem, uintptr_t client,
   }
 }
 }
- // namespace ESPHelper
-#pragma once
+
+
