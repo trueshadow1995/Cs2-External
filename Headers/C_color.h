@@ -2,35 +2,35 @@
 #include <cstdint>
 #include <iostream>
 
-class c_color {
+class c_color { // rgba color class
  public:
   float r, g, b, a;
 
-  c_color(float _r, float _g, float _b, float _a) {
+  c_color(float _r, float _g, float _b, float _a) { // constructor
     r = _r;
     g = _g;
     b = _b;
     a = _a;
-  }
+  } 
 
   c_color(uint32_t color) {
     this->a = (color >> 24) & 0xff;
     this->r = (color >> 16) & 0xff;
     this->g = (color >> 8) & 0xff;
     this->b = (color & 0xff);
-  }
+  } // constructor from uint32_t ?? ok ??? 
 
-  static c_color from_hsb(float flHue, float flSaturation, float flBrightness) {
-    const float h = std::fmodf(flHue, 1.0f) / (60.0f / 360.0f);
-    const int i = static_cast<int>(h);
-    const float f = h - static_cast<float>(i);
-    const float p = flBrightness * (1.0f - flSaturation);
-    const float q = flBrightness * (1.0f - flSaturation * f);
+  static c_color from_hsb(float flHue, float flSaturation, float flBrightness) { // from hsb to rgb
+    const float h = std::fmodf(flHue, 1.0f) / (60.0f / 360.0f); // hue
+    const int i = static_cast<int>(h); // integer part of hue
+    const float f = h - static_cast<float>(i); // fractional part of hue
+    const float p = flBrightness * (1.0f - flSaturation); // p q t are intermediate values
+    const float q = flBrightness * (1.0f - flSaturation * f); 
     const float t = flBrightness * (1.0f - flSaturation * (1.0f - f));
 
-    float r = 0.0f, g = 0.0f, b = 0.0f;
+    float r = 0.0f, g = 0.0f, b = 0.0f; // final rgb values
 
-    switch (i) {
+    switch (i) { // switch case for hue
       case 0:
         r = flBrightness, g = t, b = p;
         break;
@@ -52,8 +52,8 @@ class c_color {
         break;
     }
 
-    return c_color(r, g, b, 255);
+    return c_color(r, g, b, 255); // return color with alpha 255
   }
 
-  void random_color(int iTick) { this->r = sin(3.f * iTick + 0.f) * 127 + 128; }
+  void random_color(int iTick) { this->r = sin(3.f * iTick + 0.f) * 127 + 128; } //random color generator
 };

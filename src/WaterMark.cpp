@@ -6,12 +6,11 @@
 #include "../Headers/Globals.h"
 #include "../ImGui/imgui.h"
 #include "../Headers/Memory.h"
-  // initialize memory class
-const auto client = mem.GetModuleAddress("client.dll");
-const auto engine = mem.GetModuleAddress("engine.dll");
+ 
+
 namespace WaterMark {
 void Render() {
-  if (!globals::WaterMark) return;  // toggle check
+  if (!globals::WaterMark) return;  
 
   const char* watermarkText = "Phil was here | priv secret cheat";
   ImVec2 textSize = ImGui::CalcTextSize(watermarkText);

@@ -1,18 +1,37 @@
 
+
 #pragma once
 #include <d3d11.h>
 
-#include "Memory.h"  
-#include "Offsets.h"
-
-#include "Math.h"
 #include "../ImGui/imgui.h"
 #include "Globals.h"
+#include "Math.h"
+#include "Memory.h"
+#include "Offsets.h"
 
+  const auto client = mem.GetModuleAddress("client.dll");
+const auto engine = mem.GetModuleAddress("engine.dll");
+
+auto entityList = mem.Read<uintptr_t>(client + offsets::EntityList);
+
+    const auto localPlayerpawn =
+        mem.Read<std::uintptr_t>(client + offsets::LocalPlayerPawn);
+
+    const auto entlist = mem.Read<std::uintptr_t>(client +
+    offsets::EntityList);
+
+    ViewMatrix_t view_matrix =
+        mem.Read<ViewMatrix_t>(client + offsets::ViewMatrix);
+
+    int localTeam = mem.Read<int>(client + offsets::m_iTeamNum);
 namespace ESPHelper {
 inline void Render(Memory& mem, uintptr_t client, uintptr_t localPlayerpawn,
                    const ViewMatrix_t& view_matrix,
                    ImDrawList* backgrounddraw) {
+   
+    
+       
+       
   auto entityList = mem.Read<uintptr_t>(client + offsets::EntityList);
   int localTeam = mem.Read<int>(localPlayerpawn + offsets::m_iTeamNum);
 
@@ -77,7 +96,7 @@ inline void Render(Memory& mem, uintptr_t client, uintptr_t localPlayerpawn,
           ImColor(globals::FriendlyEspBackGroundColor[0],
                   globals::FriendlyEspBackGroundColor[1],
                   globals::FriendlyEspBackGroundColor[2],
-                  globals::FriendlyEspBackGroundColor[3] ));
+                  globals::FriendlyEspBackGroundColor[3]));
     } else if (team != localTeam && globals::EnemyEspBackground) {
       backgrounddraw->AddRectFilled(
           topLeft, bottomRight,
@@ -88,5 +107,4 @@ inline void Render(Memory& mem, uintptr_t client, uintptr_t localPlayerpawn,
     }
   }
 }
-} 
-
+}  // namespace ESPHelper

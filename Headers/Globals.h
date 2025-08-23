@@ -4,7 +4,7 @@
 namespace globals {
 inline std::uintptr_t clientAddress = 0;
 inline std::uintptr_t engine = 0;
-inline bool playerhealth = true;
+inline bool playerhealth = false;
 
 inline bool playerespcorner = false;
 inline bool radar = false;
@@ -59,7 +59,7 @@ inline float EnemyBoneColor[4] = {255.f, 0.f, 0.f, 255.f};     // red
 
 
 
-inline bool EnemyBones = true;
+inline bool EnemyBones = false;
 inline bool FriendlyBones = false;
 inline float BoneEspThickness = 2.0f;                 
 

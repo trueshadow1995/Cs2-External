@@ -16,7 +16,7 @@ void ToggleOverlayInput(HWND hwnd, bool enable) {
     exStyle |= WS_EX_TRANSPARENT;
     exStyle |= WS_EX_LAYERED;
   }
-  SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
-  RedrawWindow(hwnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE);
+  SetWindowLong(hwnd, GWL_EXSTYLE, exStyle); //apply new style
+  RedrawWindow(hwnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE); // redraw window to apply changes
 }
 #pragma once

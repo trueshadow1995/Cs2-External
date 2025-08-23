@@ -5,25 +5,26 @@
 #include "../Headers/LogoHelper.h"
 
 
-namespace DX11Renderer {
-ID3D11Device* device = nullptr;
-ID3D11DeviceContext* device_context = nullptr;
-IDXGISwapChain* swap_chain = nullptr;
-ID3D11RenderTargetView* render_target_view = nullptr;
+namespace DX11Renderer { 
+ID3D11Device* device = nullptr; //device
+ID3D11DeviceContext* device_context = nullptr; //immediate context
+IDXGISwapChain* swap_chain = nullptr; // swap chain
+ID3D11RenderTargetView* render_target_view = nullptr; //main render target view
 
-bool Init(HWND hwnd) {
-  DXGI_SWAP_CHAIN_DESC sd{};
-  sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  sd.BufferDesc.RefreshRate.Numerator = 60;
-  sd.BufferDesc.RefreshRate.Denominator = 1;
-  sd.SampleDesc.Count = 1;
-  sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sd.BufferCount = 2;
-  sd.OutputWindow = hwnd;
-  sd.Windowed = TRUE;
-  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-  D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
+bool Init(HWND hwnd) { //intialize dx11
+  DXGI_SWAP_CHAIN_DESC sd{}; //swap chain description
+  sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; //32 bit color
+  sd.BufferDesc.RefreshRate.Numerator = 60; //60hz
+  sd.BufferDesc.RefreshRate.Denominator = 1; //60hz
+  sd.SampleDesc.Count = 1; //not multi sampling
+  sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; //render target output
+  sd.BufferCount = 2; //double buffering
+  sd.OutputWindow = hwnd; //output window
+  sd.Windowed = TRUE; //windowed mode
+  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; //swap effect
+  D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0}; //feature levels
+ 
   HRESULT hr = D3D11CreateDeviceAndSwapChain(
       nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, levels, 2,
       D3D11_SDK_VERSION, &sd, &swap_chain, &device, nullptr, &device_context);

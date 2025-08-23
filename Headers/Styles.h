@@ -133,7 +133,6 @@ void Apply() {
       ImColor(20, 148, 20, 255);  // accent 3
 
      
-  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.07f, 0.5f, 0.07f,
-                                              1.f));  // changes color of title
+
 }
 }  // namespace Styles

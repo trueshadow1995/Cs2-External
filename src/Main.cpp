@@ -181,36 +181,36 @@
 //
 //
 //
-//  ImGui_ImplWin32_Init(window);
-//  ImGui_ImplDX11_Init(device, device_context);
+//  ImGui_ImplWin32_Init(window); //init imgui for win32
+//  ImGui_ImplDX11_Init(device, device_context); // init imgui for dx11
 //  LogoHelper::Load(device); //rip 12 hours loading a fucking png
-//  bool isRunning = true;
-//  while (isRunning) {
-//    MSG msg;
-//    while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
-//      TranslateMessage(&msg);
-//      DispatchMessage(&msg);
+//  bool isRunning = true; //main loop bool
+//  while (isRunning) { //main loop
+//    MSG msg; //windows message struct
+//    while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) { //message loop
+//      TranslateMessage(&msg); //translate message
+//      DispatchMessage(&msg); //dispatch message
 //
-//      if (msg.message == WM_QUIT) {
-//        isRunning = false;
+//      if (msg.message == WM_QUIT) { //check for quit message
+//        isRunning = false; // set isRunning to false
 //      }
 //    }
 //
 //    // Check for Delete key to close the program
-//    if (GetAsyncKeyState(VK_DELETE) & 0x8000) {
-//      isRunning = false;
+//    if (GetAsyncKeyState(VK_DELETE) & 0x8000) { //
+//      isRunning = false; //set isRunning to false
 //    }
 //
-//    if (!isRunning) {
-//      break;
+//    if (!isRunning) { //if isRunning is false
+//      break; //break the loop
 //    }
 //
-//    ImGui_ImplDX11_NewFrame();
-//    ImGui_ImplWin32_NewFrame();
+//    ImGui_ImplDX11_NewFrame();//start new imgui frame for dx11
+//    ImGui_ImplWin32_NewFrame(); //start new imgui frame for win32
 //    ImGui::NewFrame();
 //
-//    auto backgrounddraw = ImGui::GetBackgroundDrawList();
-//    auto foregrounddraw = ImGui::GetForegroundDrawList();
+//    auto backgrounddraw = ImGui::GetBackgroundDrawList(); //get backgroun draw list
+//    auto foregrounddraw = ImGui::GetForegroundDrawList(); //
 //   
 //
 //
@@ -486,8 +486,7 @@
 //      
 //      auto entity_hp = mem.Read<int>(pPawn + offsets::m_iHealth);
 //
-//      ESPHelper::Render(mem, client, localPlayerpawn, view_matrix,
-//                        backgrounddraw);
+//      
 //      
 //      HealthBarHelper::RenderHealth(mem, client, localPlayerpawn, view_matrix,
 //                              backgrounddraw);
@@ -506,9 +505,9 @@
 //
 //      std::array<CBoneData, 64> bones =
 //          mem.Read<std::array<CBoneData, 64>>(boneArrayPtr);
-//   
+//    /*
 //      BoneHelper::RenderBones(mem, pPawn, team, localTeam, view_matrix,
-//                              backgrounddraw);
+//                              backgrounddraw);*/
 //    }
 //
 //
