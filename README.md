@@ -4,4 +4,6 @@
 
 19 aug 2025 -> Finished skeleton esp -> that was aids. 
 
-21 aug 2025 -> Worked on Menu -> figuring out how to load an image with dx11 was aids -_- 
+20 aug 2025 -> Worked on Menu -> figuring out how to load an image with dx11 was aids -_- 
+
+21 aug 2025 -> re did the whole fucking thing, its not 1 folder anymore... where's the nearest bridge
