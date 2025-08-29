@@ -1,4 +1,4 @@
-// WaterMark.cpp
+
 #include "../Headers/WaterMarkHelper.h"
 
 #include <cmath>  // for sinf

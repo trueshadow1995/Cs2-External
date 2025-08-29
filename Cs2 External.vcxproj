@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.props" Condition="Exists('packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -131,17 +132,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="FpsCounter.h" />
+    <ClInclude Include="Headers\BoneGlobal.h" />
     <ClInclude Include="Headers\BoneHelper.h" />
-    <ClInclude Include="Headers\Bones.h" />
+    <ClInclude Include="Headers\BoneMatrix.h" />
     <ClInclude Include="Headers\C_color.h" />
-    <ClInclude Include="Headers\Draw Functions.h" />
-    <ClInclude Include="Headers\DX11Renderer.h" />
+    <ClInclude Include="Headers\EntityDataManager.h" />
     <ClInclude Include="Headers\EspHelper.h" />
     <ClInclude Include="Headers\FpsCounter.h" />
     <ClInclude Include="Headers\Globals.h" />
     <ClInclude Include="Headers\HealBarHelper.h" />
-    <ClInclude Include="Headers\ImGuiManager.h" />
     <ClInclude Include="Headers\Logo.h" />
     <ClInclude Include="Headers\LogoHelper.h" />
     <ClInclude Include="Headers\Menu.h" />
@@ -171,12 +170,13 @@
     <ClCompile Include="ImGui\imgui_impl_win32.cpp" />
     <ClCompile Include="ImGui\imgui_tables.cpp" />
     <ClCompile Include="ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="src\BoneConnection.cpp" />
     <ClCompile Include="src\BoneESP.cpp" />
-    <ClCompile Include="src\DX11Renderer.cpp" />
+    <ClCompile Include="src\EntityManager.cpp" />
+    <ClCompile Include="src\Esp.cpp" />
     <ClCompile Include="src\FpsCounter.cpp" />
-    <ClCompile Include="src\ImGuiManager.cpp" />
+    <ClCompile Include="src\HealthBars.cpp" />
     <ClCompile Include="src\Logo.cpp" />
-    <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Menu.cpp" />
     <ClCompile Include="src\OverlayWindow.cpp" />
     <ClCompile Include="src\RenderManager.cpp" />
@@ -189,11 +189,14 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets" Condition="Exists('packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets')" />
+    <Import Project="packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.targets" Condition="Exists('packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.DXSDK.D3DX.9.29.952.8\build\native\Microsoft.DXSDK.D3DX.targets'))" />
+    <Error Condition="!Exists('packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.props'))" />
+    <Error Condition="!Exists('packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Windows.CppWinRT.2.0.220531.1\build\native\Microsoft.Windows.CppWinRT.targets'))" />
   </Target>
 </Project>

@@ -1,118 +1,114 @@
+
+#include <Windows.h>
 #pragma once
-#include <Windows.h>   // Must be first
-#include <TlHelp32.h>  // After Windows.h
+#include <TlHelp32.h>
 #include <iostream>
-#include <string>
 #include <optional>
+#include <string>
+#include <vector>
 
+class Memory {
+ private:
+  DWORD processId = 0;
+  HANDLE processHandle = nullptr;
 
-class Memory { // Memory manipulation class
- private: // private members
-  DWORD processId = 0; //process ID
-  HANDLE processHandle = nullptr; //process handle
+  std::optional<DWORD> FindProcessId(
+      const std::string_view processName) const noexcept {
+    PROCESSENTRY32 entry = {};
+    entry.dwSize = sizeof(PROCESSENTRY32);
 
-  std::optional<DWORD> FindProcessId( // find process ID by name
-      const std::string_view processName) const noexcept { // find process ID by name
-    PROCESSENTRY32 entry = {}; //process entry struct
-    entry.dwSize = sizeof(PROCESSENTRY32); //size of struct
+    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return std::nullopt;
 
-    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); //snapshop of all processes
+    std::optional<DWORD> result = std::nullopt;
 
-    if (snapshot == INVALID_HANDLE_VALUE) { //invalid snapshot
-      return std::nullopt; //return nullopt
-    } 
-
-    std::optional<DWORD> result = std::nullopt; //result variable
-
-    if (Process32First(snapshot, &entry)) { //get first process
+    if (Process32First(snapshot, &entry)) {
       do {
-        if (processName == entry.szExeFile) { //compare process names
-          result = entry.th32ProcessID; //get process ID
-          break; //process found
+        if (processName == entry.szExeFile) {
+          result = entry.th32ProcessID;
+          break;
         }
-      } while (Process32Next(snapshot, &entry)); //iterate processes
+      } while (Process32Next(snapshot, &entry));
     }
 
-    CloseHandle(snapshot); //close snapshot handle
-    return result; //return result
-  }
-
- public: //public members
-  Memory(const std::string_view processName) noexcept { //constructor
-    processId = *FindProcessId(processName); //find process ID
-    processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId); //open process
-  }
-
-  ~Memory() { //destructor
-    if (processHandle) { //if process handle is valid
-      CloseHandle(processHandle); //close process handle
-    }
-  }
-
-  const std::uintptr_t GetModuleAddress( //get module base address
-      const std::string_view moduleName) const noexcept { //get module base
-    MODULEENTRY32 entry = {}; //module entry struct
-    entry.dwSize = sizeof(MODULEENTRY32); //size of struct
-
-    const HANDLE snapshot = CreateToolhelp32Snapshot( //snapshot of all modules in process
-        TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId); //snapshot of all modules in process
-
-    if (snapshot == INVALID_HANDLE_VALUE) { //invalid snapshot
-      return 0;
-    }
-
-    std::uintptr_t result = 0; //result variable
-
-    if (Module32First(snapshot, &entry)) { //get first module
-      do {
-        if (moduleName == entry.szModule) { //compare module names
-          result = reinterpret_cast<std::uintptr_t>(entry.modBaseAddr); //get module base address
-          break; 
-        }
-      } while (Module32Next(snapshot, &entry)); //iterate modules
-    }
-
-    CloseHandle(snapshot); //close snapshot handle
+    CloseHandle(snapshot);
     return result;
   }
 
-  template <typename T> //template function to read memory
-  const T Read(const std::uintptr_t address) const noexcept {
-    T value = {};
-    SIZE_T bytesRead = 0;
-    ReadProcessMemory(processHandle, reinterpret_cast<const void*>(address),
-                      &value, sizeof(T), &bytesRead);
+ public:
+  Memory(const std::string_view processName) noexcept {
+    auto pid = FindProcessId("cs2.exe");
+    if (pid.has_value()) {
+      processId = pid.value();
+      processHandle = OpenProcess(PROCESS_VM_READ, FALSE, processId);
+    }
+  }
+
+  ~Memory() {
+    if (processHandle) CloseHandle(processHandle);
+  }
+
+  // Get module address by name
+  uintptr_t GetModuleAddress(const std::string_view moduleName) const noexcept {
+    MODULEENTRY32 entry = {};
+    entry.dwSize = sizeof(MODULEENTRY32);
+
+    const HANDLE snapshot = CreateToolhelp32Snapshot(
+        TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
+    if (snapshot == INVALID_HANDLE_VALUE) return 0;
+
+    uintptr_t result = 0;
+
+    if (Module32First(snapshot, &entry)) {
+      do {
+        if (moduleName == entry.szModule) {
+          result = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
+          break;
+        }
+      } while (Module32Next(snapshot, &entry));
+    }
+
+    CloseHandle(snapshot);
+    return result;
+  }
+
+  template <typename T>
+  T Read(const uintptr_t address) const noexcept {
+    T value{};
+    if (processHandle && address) {
+      SIZE_T bytesRead = 0;
+      ReadProcessMemory(processHandle, reinterpret_cast<const void*>(address),
+                        &value, sizeof(T), &bytesRead);
+    }
     return value;
   }
 
-  template <typename T> //template function to write memory
-  void Write(const std::uintptr_t address, const T& value) const noexcept { //write memory
-    SIZE_T bytesWritten = 0; //bytes written variable
-    WriteProcessMemory(processHandle, reinterpret_cast<void*>(address), &value, 
-                       sizeof(T), &bytesWritten); //write memory
+  // Batch read multiple addresses
+  template <typename T>
+  std::vector<T> ReadBatch(
+      const std::vector<uintptr_t>& addresses) const noexcept {
+    std::vector<T> results;
+    results.reserve(addresses.size());
+
+    for (const auto& address : addresses) {
+      results.push_back(Read<T>(address));
+    }
+    return results;
   }
 
-  std::string ReadString(const std::uintptr_t address,
-                         const std::size_t size) const { //read string
-    std::string value(size, '\0'); //string variable
-    SIZE_T bytesRead = 0; //bytes read variable
-    ReadProcessMemory(processHandle, reinterpret_cast<const void*>(address),
-                      &value[0], size, &bytesRead); //read memory
-    value.resize(bytesRead); //resize string to actual size read
-    return value; //return string
+  bool IsValidAddress(uintptr_t address) const noexcept {
+    if (!processHandle || !address) return false;
+    MEMORY_BASIC_INFORMATION mbi;
+    return VirtualQueryEx(processHandle, reinterpret_cast<LPCVOID>(address),
+                          &mbi, sizeof(mbi)) &&
+           (mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ |
+                           PAGE_EXECUTE_READWRITE)) &&
+           !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
   }
 
-  template <typename Function>//template function to call virtual function
-  Function call_vfunc(PVOID Base, DWORD Index) { //call virtual function
-    PDWORD* VTablePointer = (PDWORD*)Base; //get vtable pointer
-    PDWORD VTableFunctionBase = *VTablePointer; //get vtable function base
-    DWORD dwAddress = VTableFunctionBase[Index]; //get function address
-    return (Function)(dwAddress); //return function
+  HANDLE GetHandle() const noexcept { return processHandle; }
+  DWORD GetProcessId() const noexcept { return processId; }
+  bool IsValid() const noexcept {
+    return processHandle != nullptr && processId != 0;
   }
-
-  HANDLE GetHandle() const noexcept { return processHandle; } //get process handle
-
-  Memory() {} //default constructor
 };
-
-inline Memory mem{"cs2.exe"};

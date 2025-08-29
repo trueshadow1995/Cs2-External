@@ -1,13 +1,11 @@
-
-#pragma once
 #include "../Headers/Globals.h"
-#include "../Headers/Memory.h"
 #include "../ImGui/imgui.h"
+#include <corecrt_math.h>
+#include <string>
+
 
 namespace FpsCounter {
 
- void Render() {
-
-}
+inline void Render() {}
 
 }  // namespace FpsCounter
