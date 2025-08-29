@@ -7,3 +7,5 @@
 20 aug 2025 -> Worked on Menu -> figuring out how to load an image with dx11 was aids -_- 
 
 21 aug 2025 -> re did the whole fucking thing, its not 1 folder anymore... where's the nearest bridge
+
+22 aug -> finished re structuring, everything i coded before this point works once again. Besides fps counter, also overlay seems to have slowed quite a bit from not doing everything in 1 folder anymore
