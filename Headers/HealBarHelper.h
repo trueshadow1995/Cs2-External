@@ -8,4 +8,4 @@ struct GameData;
 
 namespace HealthBarHelper {
 void RenderHealth(const GameData& gameData, ImDrawList* drawList);
-}  // namespace HealthBarHelper
+}  // namespace HealthBarHelperz

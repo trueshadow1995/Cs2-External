@@ -87,9 +87,6 @@
     <ClInclude Include="Headers\OverlayWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Headers\MouseFunc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Headers\BoneGlobal.h">
       <Filter>Header Files</Filter>
     </ClInclude>

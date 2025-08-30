@@ -144,7 +144,6 @@
     <ClInclude Include="Headers\Logo.h" />
     <ClInclude Include="Headers\LogoHelper.h" />
     <ClInclude Include="Headers\Menu.h" />
-    <ClInclude Include="Headers\MouseFunc.h" />
     <ClInclude Include="Headers\OverlayWindow.h" />
     <ClInclude Include="Headers\RenderManager.h" />
     <ClInclude Include="Headers\WaterMarkHelper.h" />

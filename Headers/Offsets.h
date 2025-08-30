@@ -11,7 +11,7 @@ constexpr std::ptrdiff_t m_hPawn =  0x6B4;  // CHandle<C_BasePlayerPawn :o - lol
 constexpr std::ptrdiff_t m_vOldOrigin = 0x15B0;  // Vector
 constexpr std::ptrdiff_t m_iHealth = 0x34C;      
 constexpr std::ptrdiff_t Mesh = 0x38; 
-constexpr std::ptrdiff_t dwLocalPlayerController = 0x1E1E798; //
+constexpr std::ptrdiff_t dwLocalPlayerController = 0x1E19010;  //
 
 constexpr std::ptrdiff_t m_modelState = 0x190;
 constexpr std::ptrdiff_t boneArrayOffset = 0x80;  // inside modelState

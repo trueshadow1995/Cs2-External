@@ -62,7 +62,6 @@ int APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
     const auto engine2Retry = mem.GetModuleAddress("engine2.dll");
 
     if (clientRetry == 0 || engine2Retry == 0) {
-      std::cerr << "[ERROR] Modules still not found after retry. Exiting.\n";
       return -1;
     }
   }
@@ -70,7 +69,6 @@ int APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
   // Open process handle
   const HANDLE handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
   if (!handle) {
-    std::cerr << "[ERROR] Failed to open CS2 process!\n";
     return 0;
   }
 
@@ -82,7 +80,7 @@ Overlay overlay(mem); //start overlay
     return -1;
   }
 
-  std::cout << "[DEBUG] Running Overlay...\n";
+
   overlay.Run();
 
   std::cout << "[DEBUG] Overlay finished. Shutting down...\n";

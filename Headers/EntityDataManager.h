@@ -26,8 +26,9 @@ struct GameData {
   bool valid = false;
   uintptr_t localPlayerPawn = 0;
   int localTeam = 0;
-  ViewMatrix_t viewMatrix{};
-  std::vector<EntityInfo> entities{};
+  Vector3 localOrigin;
+  ViewMatrix_t viewMatrix;
+  std::vector<EntityInfo> entities;
 };
 
 class DataManager {

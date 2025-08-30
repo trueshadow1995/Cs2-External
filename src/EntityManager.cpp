@@ -132,19 +132,19 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
   const auto& previousBones = previousIt->second;
   uint64_t startTime = startTimeIt->second;
 
-  // MUCH FASTER interpolation - reduced from 5.0f to 2.0f
-  float interpolationTime = 2.0f;
+  // interpolationTime is in milliseconds and should match cache frequency
+  float interpolationTime =
+      static_cast<float>(BONE_CACHE_DURATION);  // e.g. 14 ms
   float elapsed = static_cast<float>(currentTime - startTime);
-  float alpha = std::clamp(elapsed / interpolationTime, 0.0f, 1.0f);
+  float alpha = elapsed / interpolationTime;
 
-  // Linear interpolation for faster response (removed complex easing)
-  // alpha = alpha * alpha * alpha * (alpha * (alpha * 6 - 15) + 10);
+  // hard clamp to prevent overshoot
+  if (alpha < 0.0f) alpha = 0.0f;
+  if (alpha > 1.0f) alpha = 1.0f;
 
-  // Interpolate with minimal smoothing for faster response
   for (int i = 0; i < globals::MAX_BONES; i++) {
     if (!currentBones[i].location.IsZero()) {
       if (!previousBones[i].location.IsZero()) {
-        // Fast linear interpolation
         interpolatedBones[i].location = Vector3::Lerp(
             previousBones[i].location, currentBones[i].location, alpha);
       } else {
@@ -155,6 +155,7 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
 
   return interpolatedBones;
 }
+
 
 uintptr_t DataManager::GetEntityPawn(int index, uintptr_t entityList) {
   try {

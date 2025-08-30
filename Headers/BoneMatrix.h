@@ -12,6 +12,6 @@ struct CBoneData {
 };
 
 struct Matrix3x4_t {
-  float m[3][4];
+  float m[4][4];
   Vector3 GetOrigin() const { return {m[0][3], m[1][3], m[2][3]}; }
 };

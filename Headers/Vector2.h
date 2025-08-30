@@ -20,11 +20,4 @@ struct Vector2 {
   }
 
   constexpr bool IsValid() const noexcept { return x >= 0.f && y >= 0.f; }
-
-
-
-
-
-
-
 };

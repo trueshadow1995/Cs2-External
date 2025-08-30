@@ -1,5 +1,6 @@
 #pragma once
 #include <d3d11.h>
+#include <windows.h>
 
 #include <chrono>
 
@@ -8,8 +9,9 @@
 
 class Overlay {
  public:
-  Overlay(Memory& memory);  // Only one constructor
+  Overlay(Memory& memory);
   ~Overlay();
+
   bool Init();
   void Run();
   void Shutdown();
@@ -27,7 +29,7 @@ class Overlay {
   std::chrono::high_resolution_clock::time_point lastFrameTime;
   uintptr_t clientBase;
   DataManager* entityManager;
-  Memory& mem;  // Change to reference
+  Memory& mem;
 
   void InitConsole();
   bool CreateDX11();
@@ -37,6 +39,8 @@ class Overlay {
   void HandleInput();
   void UpdateClickThrough();
   void UpdateImGuiInput();
+  void SyncOverlayToGameWindow();  // <--- was missing from header
+
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam,
                                      LPARAM lParam);
 };

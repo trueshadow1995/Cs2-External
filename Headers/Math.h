@@ -1,11 +1,11 @@
 ﻿#pragma once
+#include <algorithm>
 #include "Math.h"
 #include "cmath"
 #include "memory.h"
 #include "numbers"
-#include <algorithm>
 
-static int screenheight = 1080;
+    static int screenheight = 1080;
 static int screenwidth = 1920;
 
 struct ViewMatrix_t {
@@ -76,7 +76,6 @@ struct Vector3 {
     return true;
   }
 
-
   // In your Math.h, update the Vector3::Lerp function:
   static Vector3 Lerp(const Vector3& a, const Vector3& b, float t) {
     // Manual clamping instead of std::clamp
@@ -86,16 +85,14 @@ struct Vector3 {
     return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t,
             a.z + (b.z - a.z) * t};
   }
-    // Smooth interpolation (ease-in-out)
-    static Vector3 SmoothLerp(const Vector3& a, const Vector3& b, float t) {
-      t = std::clamp(t, 0.0f, 1.0f);
-      // Smooth step function
-      t = t * t * (3.0f - 2.0f * t);
-      return Lerp(a, b, t);
-    }
-  
+  // Smooth interpolation (ease-in-out)
+  static Vector3 SmoothLerp(const Vector3& a, const Vector3& b, float t) {
+    t = std::clamp(t, 0.0f, 1.0f);
+    // Smooth step function
+    t = t * t * (3.0f - 2.0f * t);
+    return Lerp(a, b, t);
+  }
 };
-
 
 struct Quaternion {
   float x, y, z, w;
@@ -103,4 +100,3 @@ struct Quaternion {
   Quaternion() : x(0), y(0), z(0), w(1) {}
   Quaternion(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
 };
-
