@@ -12,3 +12,4 @@
 
 28 aug -> fuckin fixed entity loop. no more laggy esp or bones : ) 
 
+4 Sept -> fixed some shit update menu again, aimbot started 
