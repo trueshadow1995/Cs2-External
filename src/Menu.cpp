@@ -267,8 +267,12 @@ void RenderVisualsTab() {
         break;
       case 2:  // Bones Settings
         ImGui::Checkbox("Enemy Bones", &globals::EnemyBones);
+        ImGui::SliderFloat("Max Distance", &globals::BoneEspThickness, 0.0f,
+                           10.f);
         ImGui::Spacing();
         ImGui::Checkbox("Friendly Bones", &globals::FriendlyBones);
+        ImGui::SliderFloat("Max Distance", &globals::BoneEspThickness, 0.0f,
+                           10.f);
 
 
         break;

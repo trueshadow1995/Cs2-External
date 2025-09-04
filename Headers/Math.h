@@ -1,11 +1,9 @@
 ﻿#pragma once
 #include <algorithm>
-#include "Math.h"
-#include "cmath"
-#include "memory.h"
-#include "numbers"
+#include <cmath>
+#include <numbers>
 
-    static int screenheight = 1080;
+static int screenheight = 1080;
 static int screenwidth = 1920;
 
 struct ViewMatrix_t {
@@ -17,8 +15,7 @@ struct ViewMatrix_t {
 struct Vector3 {
   float x, y, z;
 
-  constexpr Vector3(const float x = 0.f, const float y = 0.f,
-                    const float z = 0.f) noexcept
+  constexpr Vector3(float x = 0.f, float y = 0.f, float z = 0.f) noexcept
       : x(x), y(y), z(z) {}
 
   constexpr Vector3 operator-(const Vector3& other) const noexcept {
@@ -29,11 +26,11 @@ struct Vector3 {
     return Vector3{x + other.x, y + other.y, z + other.z};
   }
 
-  constexpr Vector3 operator/(const float factor) const noexcept {
+  constexpr Vector3 operator/(float factor) const noexcept {
     return Vector3{x / factor, y / factor, z / factor};
   }
 
-  constexpr Vector3 operator*(const float factor) const noexcept {
+  constexpr Vector3 operator*(float factor) const noexcept {
     return Vector3{x * factor, y * factor, z * factor};
   }
 
@@ -47,16 +44,24 @@ struct Vector3 {
     return x == 0.f && y == 0.f && z == 0.f;
   }
 
-  // ADDED: Distance calculation method
-  float Distance(const Vector3& other) const noexcept {
+  // IMPROVED: Safer distance calculation
+  float Distance(const Vector3& other) const {
     float dx = x - other.x;
     float dy = y - other.y;
     float dz = z - other.z;
-    return std::sqrt(dx * dx + dy * dy + dz * dz);
+    float distSq = dx * dx + dy * dy + dz * dz;
+
+    // Prevent sqrt of negative or very small numbers
+    if (distSq < 0.0001f) return 0.0f;
+    return std::sqrt(distSq);
   }
 
+  // IMPROVED: Better WorldToScreen with validation
   bool WorldToScreen(const ViewMatrix_t& matrix, float screenWidth,
                      float screenHeight, Vector3& out) const {
+    // Quick validation
+    if (screenWidth <= 0 || screenHeight <= 0) return false;
+
     float clipX =
         x * matrix[0][0] + y * matrix[0][1] + z * matrix[0][2] + matrix[0][3];
     float clipY =
@@ -66,31 +71,37 @@ struct Vector3 {
     float clipW =
         x * matrix[3][0] + y * matrix[3][1] + z * matrix[3][2] + matrix[3][3];
 
-    if (clipW < 0.01f) return false;  // behind camera
+    if (clipW < 0.01f) return false;
 
     float invW = 1.f / clipW;
     out.x = (screenWidth / 2.f) * (clipX * invW + 1.f);
-    out.y = (screenHeight / 2.f) * (1.f - clipY * invW);  // flip Y
+    out.y = (screenHeight / 2.f) * (1.f - clipY * invW);
     out.z = clipZ * invW;
 
-    return true;
+    // Check if actually on screen
+    return out.x >= 0 && out.x <= screenWidth && out.y >= 0 &&
+           out.y <= screenHeight;
   }
 
-  // In your Math.h, update the Vector3::Lerp function:
   static Vector3 Lerp(const Vector3& a, const Vector3& b, float t) {
-    // Manual clamping instead of std::clamp
     if (t < 0.0f) t = 0.0f;
     if (t > 1.0f) t = 1.0f;
 
     return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t,
             a.z + (b.z - a.z) * t};
   }
-  // Smooth interpolation (ease-in-out)
+
   static Vector3 SmoothLerp(const Vector3& a, const Vector3& b, float t) {
-    t = std::clamp(t, 0.0f, 1.0f);
-    // Smooth step function
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+
     t = t * t * (3.0f - 2.0f * t);
     return Lerp(a, b, t);
+  }
+
+  // ADDED: Simple validation to prevent NaN issues
+  bool IsValid() const {
+    return !std::isnan(x) && !std::isnan(y) && !std::isnan(z);
   }
 };
 
@@ -100,3 +111,9 @@ struct Quaternion {
   Quaternion() : x(0), y(0), z(0), w(1) {}
   Quaternion(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
 };
+
+// ADDED: Simple utility function for screen bounds checking
+inline bool IsOnScreen(float x, float y, float screenWidth,
+                       float screenHeight) {
+  return x >= 0 && x <= screenWidth && y >= 0 && y <= screenHeight;
+}

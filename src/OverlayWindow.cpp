@@ -6,9 +6,11 @@
 
 #include <iostream>
 #include <thread>
+
 #include "../Headers/Aimbot.h"
 #include "../Headers/BoneHelper.h"
 #include "../Headers/EspHelper.h"
+#include "../Headers/FovVisuals.h"
 #include "../Headers/Globals.h"
 #include "../Headers/HealBarHelper.h"
 #include "../Headers/LogoHelper.h"
@@ -19,7 +21,6 @@
 #include "../ImGui/imgui.h"
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
-#include "../Headers/FovVisuals.h"
 
 // Precomputed constants
 constexpr const char* GAME_WINDOW_NAME = "Counter-Strike 2";
@@ -60,19 +61,17 @@ Overlay::Overlay(Memory& memory)
       bbHeight(1080),
       clientBase(0),
       entityManager(nullptr),
-      aimbot(nullptr)  // ADD THIS INITIALIZATION
-{
+      aimbot(nullptr) {
   std::cout << "[DEBUG] Overlay constructor called\n";
 }
 
 Overlay::~Overlay() {
   delete entityManager;
-  delete aimbot;  // ADD THIS CLEANUP
+  delete aimbot;
   entityManager = nullptr;
-  aimbot = nullptr;  // ADD THIS
+  aimbot = nullptr;
   Shutdown();
 }
-
 
 inline void PrintColored(const std::string& msg, WORD color) {
   HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -114,7 +113,6 @@ bool Overlay::Init() {
   }
 
   entityManager = new DataManager(mem, clientBase);
-  // INITIALIZE AIMBOT HERE 
   aimbot = new Aimbot(mem, clientBase);
 
   WNDCLASSEX wc{};
@@ -169,7 +167,9 @@ void Overlay::RenderGameContent() {
 
   float screenWidth = ImGui::GetIO().DisplaySize.x;
   float screenHeight = ImGui::GetIO().DisplaySize.y;
+
   FovVisualizer::DrawFovCircle(drawList, screenWidth, screenHeight);
+
   // Healthbars
   if (globals::HealthBar) {
     HealthBarHelper::RenderHealth(gameData, drawList);
@@ -183,18 +183,18 @@ void Overlay::RenderGameContent() {
     }
   }
 
-  //bones
+  // Bones - optimized with early checks
   if (globals::Bones) {
     for (const auto& entity : gameData.entities) {
+      // Quick check if any bones are valid before detailed iteration
       bool hasBones = false;
-   
-      for (const auto& bone : entity.bones) {
-        if (!bone.location.IsZero()) {
+      for (int i = 0; i < 10; ++i) {  // Check first few bones only
+        if (i < globals::MAX_BONES && !entity.bones[i].location.IsZero()) {
           hasBones = true;
           break;
         }
       }
-      //bone debug
+
       if (hasBones) {
         bool isTeammate = (entity.team == gameData.localTeam);
         BoneEsp::RenderBones(entity.bones, gameData.viewMatrix, screenWidth,
@@ -211,11 +211,15 @@ bool Overlay::CreateDX11() {
   sd.BufferDesc.Width = bbWidth;
   sd.BufferDesc.Height = bbHeight;
   sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  sd.BufferDesc.RefreshRate.Numerator = 0;    // Disable VSync
+  sd.BufferDesc.RefreshRate.Denominator = 1;  // Disable VSync
   sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   sd.OutputWindow = hwnd;
   sd.SampleDesc.Count = 1;
+  sd.SampleDesc.Quality = 0;
   sd.Windowed = TRUE;
   sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+  sd.Flags = 0;
 
   D3D_FEATURE_LEVEL featureLevels[] = {D3D_FEATURE_LEVEL_11_0};
   HRESULT hr = D3D11CreateDeviceAndSwapChain(
@@ -243,28 +247,41 @@ bool Overlay::CreateRTVFromSwapChain() {
 
 void Overlay::SyncOverlayToGameWindow() {
   if (!hwnd) return;
+
+  static HWND lastGameWnd = nullptr;
+  static RECT lastGameRect = {0};
+
   HWND gameWnd = FindWindowA(nullptr, GAME_WINDOW_NAME);
   if (!gameWnd) return;
 
   RECT gameRect{};
   if (!GetWindowRect(gameWnd, &gameRect)) return;
 
-  int gameWidth = gameRect.right - gameRect.left;
-  int gameHeight = gameRect.bottom - gameRect.top;
+  // Only update if window actually moved/resized
+  if (gameWnd != lastGameWnd || gameRect.left != lastGameRect.left ||
+      gameRect.top != lastGameRect.top ||
+      gameRect.right != lastGameRect.right ||
+      gameRect.bottom != lastGameRect.bottom) {
+    int gameWidth = gameRect.right - gameRect.left;
+    int gameHeight = gameRect.bottom - gameRect.top;
 
-  SetWindowPos(hwnd, HWND_TOPMOST, gameRect.left, gameRect.top, gameWidth,
-               gameHeight, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    SetWindowPos(hwnd, HWND_TOPMOST, gameRect.left, gameRect.top, gameWidth,
+                 gameHeight, SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
-  if (gameWidth != bbWidth || gameHeight != bbHeight) {
-    bbWidth = gameWidth;
-    bbHeight = gameHeight;
-    if (renderTargetView) {
-      renderTargetView->Release();
-      renderTargetView = nullptr;
+    if (gameWidth != bbWidth || gameHeight != bbHeight) {
+      bbWidth = gameWidth;
+      bbHeight = gameHeight;
+      if (renderTargetView) {
+        renderTargetView->Release();
+        renderTargetView = nullptr;
+      }
+      swapChain->ResizeBuffers(0, bbWidth, bbHeight, DXGI_FORMAT_UNKNOWN, 0);
+      CreateRTVFromSwapChain();
+      ImGui::GetIO().DisplaySize = ImVec2((float)bbWidth, (float)bbHeight);
     }
-    swapChain->ResizeBuffers(0, bbWidth, bbHeight, DXGI_FORMAT_UNKNOWN, 0);
-    CreateRTVFromSwapChain();
-    ImGui::GetIO().DisplaySize = ImVec2((float)bbWidth, (float)bbHeight);
+
+    lastGameWnd = gameWnd;
+    lastGameRect = gameRect;
   }
 }
 
@@ -291,7 +308,7 @@ void Overlay::RenderFrame() {
   UpdateImGuiInput();
   RenderGameContent();
 
-  // CALL AIMBOT HERE - ADD THESE LINES
+  // Aimbot call
   if (entityManager && aimbot) {
     auto gameData = entityManager->GetGameData();
     if (gameData.valid) {
@@ -314,7 +331,8 @@ void Overlay::Run() {
   using namespace std::chrono;
 
   const int targetFPS = 100;
-  const auto frameDuration = milliseconds(45 / targetFPS);
+  const auto frameDuration =
+      microseconds(30000 / targetFPS);  // Correct calculation
 
   while (running) {
     auto frameStart = high_resolution_clock::now();
@@ -330,12 +348,10 @@ void Overlay::Run() {
 
     HandleInput();
 
-   
-
     if (running) RenderFrame();
 
     auto frameEnd = high_resolution_clock::now();
-    auto elapsed = duration_cast<milliseconds>(frameEnd - frameStart);
+    auto elapsed = duration_cast<microseconds>(frameEnd - frameStart);
 
     if (elapsed < frameDuration) {
       std::this_thread::sleep_for(frameDuration - elapsed);
@@ -344,27 +360,25 @@ void Overlay::Run() {
   Shutdown();
 }
 
-
 void Overlay::HandleInput() {
   if (GetAsyncKeyState(VK_INSERT) & 1) {
     globals::menu_open = !globals::menu_open;
     UpdateClickThrough();
   }
 
-  // Toggle aimbot with a different key (e.g., F key)
   if (GetAsyncKeyState(0x46) & 1) {  // F key
     globals::Aimbot = !globals::Aimbot;
     std::cout << "[INFO] Aimbot " << (globals::Aimbot ? "enabled" : "disabled")
               << "\n";
   }
 
-  // Close program on Delete key with proper shutdown
   if (GetAsyncKeyState(VK_DELETE) & 1) {
     std::cout << "[INFO] Delete key pressed - shutting down...\n";
     running = false;
     PostQuitMessage(0);
   }
 }
+
 void Overlay::UpdateClickThrough() {
   if (!hwnd || !IsWindow(hwnd)) return;
   LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);

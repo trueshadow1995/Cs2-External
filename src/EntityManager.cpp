@@ -1,4 +1,4 @@
-﻿#include <windows.h>  // For OutputDebugStringA
+﻿#include <windows.h>
 
 #include <chrono>
 #include <cmath>
@@ -12,6 +12,7 @@
 #include "../Headers/Offsets.h"
 using namespace std::chrono;
 
+// Precompute constants
 constexpr std::array<int, 32> ESSENTIAL_BONES = {
     6,  5,  4,  3,  2,  0,  // Head to pelvis
     8,  9,  10,             // Left arm
@@ -21,6 +22,82 @@ constexpr std::array<int, 32> ESSENTIAL_BONES = {
     11, 12, 16, 17, 38, 39, 40, 66, 7, 18, 19, 37};
 
 constexpr uint64_t BONE_CACHE_DURATION = 14;
+constexpr int ENTITY_LIST_INDEX_SHIFT = 9;
+constexpr int ENTITY_LIST_INDEX_MASK = 0x1FF;
+
+// Precompute bone address offsets
+std::array<size_t, ESSENTIAL_BONES.size()> boneAddressOffsets;
+
+// ADDED: View matrix validation
+bool IsViewMatrixValid(const ViewMatrix_t& matrix) {
+  // Check for NaN, infinity, or obviously invalid values
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      if (std::isnan(matrix[i][j]) || !std::isfinite(matrix[i][j])) {
+        return false;
+      }
+    }
+  }
+
+  // Check for identity matrix (invalid for view matrix)
+  if (matrix[0][0] == 1.0f && matrix[1][1] == 1.0f && matrix[2][2] == 1.0f &&
+      matrix[3][3] == 1.0f && matrix[0][3] == 0.0f && matrix[1][3] == 0.0f &&
+      matrix[2][3] == 0.0f) {
+    return false;
+  }
+
+  // Check for zero matrix
+  if (matrix[0][0] == 0.0f && matrix[1][1] == 0.0f && matrix[2][2] == 0.0f &&
+      matrix[3][3] == 0.0f) {
+    return false;
+  }
+
+  return true;
+}
+
+// ADDED: Try multiple view matrix offsets
+ViewMatrix_t ReadViewMatrixWithRetry(Memory& mem, uintptr_t client) {
+  constexpr std::array<uintptr_t, 4> VIEW_MATRIX_OFFSETS = {
+      offsets::ViewMatrix, offsets::ViewMatrix + 0x40,
+      offsets::ViewMatrix - 0x40, offsets::ViewMatrix + 0x80};
+
+  static int lastGoodOffsetIndex = 0;
+  static ViewMatrix_t lastGoodMatrix;
+
+  // First try the last known good offset
+  ViewMatrix_t matrix =
+      mem.Read<ViewMatrix_t>(client + VIEW_MATRIX_OFFSETS[lastGoodOffsetIndex]);
+  if (IsViewMatrixValid(matrix)) {
+    lastGoodMatrix = matrix;
+    return matrix;
+  }
+
+  // If last good failed, try all offsets
+  for (int i = 0; i < VIEW_MATRIX_OFFSETS.size(); i++) {
+    if (i == lastGoodOffsetIndex) continue;  // Skip the one we already tried
+
+    matrix = mem.Read<ViewMatrix_t>(client + VIEW_MATRIX_OFFSETS[i]);
+    if (IsViewMatrixValid(matrix)) {
+      lastGoodOffsetIndex = i;
+      lastGoodMatrix = matrix;
+      return matrix;
+    }
+  }
+
+  // If all else fails, return last known good matrix
+  return lastGoodMatrix;
+}
+
+// Initialize bone offsets once
+void InitializeBoneOffsets() {
+  static bool initialized = false;
+  if (!initialized) {
+    for (size_t i = 0; i < ESSENTIAL_BONES.size(); ++i) {
+      boneAddressOffsets[i] = ESSENTIAL_BONES[i] * sizeof(CBoneData);
+    }
+    initialized = true;
+  }
+}
 
 GameData DataManager::GetGameData() {
   std::lock_guard<std::mutex> lock(dataMutex_);
@@ -29,6 +106,7 @@ GameData DataManager::GetGameData() {
 
 DataManager::DataManager(Memory& mem, uintptr_t client)
     : mem_(mem), client_(client), running_(false) {
+  InitializeBoneOffsets();
   StartUpdateThread();
 }
 
@@ -84,15 +162,16 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::ReadBones(
     std::vector<uintptr_t> boneAddresses;
     boneAddresses.reserve(ESSENTIAL_BONES.size());
 
-    for (int boneId : ESSENTIAL_BONES) {
-      boneAddresses.push_back(boneArrayPtr + boneId * sizeof(CBoneData));
+    for (size_t i = 0; i < ESSENTIAL_BONES.size(); i++) {
+      boneAddresses.push_back(boneArrayPtr + boneAddressOffsets[i]);
     }
 
     auto boneData = mem_.ReadBatch<CBoneData>(boneAddresses);
 
     for (size_t i = 0; i < ESSENTIAL_BONES.size(); i++) {
       if (i < boneData.size() && !boneData[i].location.IsZero() &&
-          !std::isnan(boneData[i].location.x)) {
+          !std::isnan(boneData[i].location.x) &&
+          boneData[i].location.IsValid()) {  // ADDED: Extra validation
         bones[ESSENTIAL_BONES[i]] = boneData[i];
       }
     }
@@ -128,16 +207,21 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
   float elapsed = static_cast<float>(currentTime - startTime);
   float alpha = elapsed / interpolationTime;
 
-  if (alpha < 0.0f) alpha = 0.0f;
-  if (alpha > 1.0f) alpha = 1.0f;
+  // Use std::clamp for better performance
+  alpha = std::clamp(alpha, 0.0f, 1.0f);
 
-  for (int i = 0; i < globals::MAX_BONES; i++) {
-    if (!currentBones[i].location.IsZero()) {
-      if (!previousBones[i].location.IsZero()) {
-        interpolatedBones[i].location = Vector3::Lerp(
-            previousBones[i].location, currentBones[i].location, alpha);
+  // Only interpolate essential bones instead of all MAX_BONES
+  for (int boneId : ESSENTIAL_BONES) {
+    if (boneId < globals::MAX_BONES &&
+        !currentBones[boneId].location.IsZero() &&
+        currentBones[boneId].location.IsValid()) {  // ADDED: Validation
+      if (!previousBones[boneId].location.IsZero() &&
+          previousBones[boneId].location.IsValid()) {  // ADDED: Validation
+        interpolatedBones[boneId].location =
+            Vector3::Lerp(previousBones[boneId].location,
+                          currentBones[boneId].location, alpha);
       } else {
-        interpolatedBones[i].location = currentBones[i].location;
+        interpolatedBones[boneId].location = currentBones[boneId].location;
       }
     }
   }
@@ -147,28 +231,33 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
 
 uintptr_t DataManager::GetEntityPawn(int index, uintptr_t entityList) {
   try {
-    uintptr_t listEntry =
-        mem_.Read<uintptr_t>(entityList + (0x8 * (index >> 9)) + 0x10);
+    uintptr_t listEntry = mem_.Read<uintptr_t>(
+        entityList + (0x8 * (index >> ENTITY_LIST_INDEX_SHIFT)) + 0x10);
     if (!listEntry) return 0;
 
-    uintptr_t controller =
-        mem_.Read<uintptr_t>(listEntry + (0x78 * (index & 0x1FF)));
+    uintptr_t controller = mem_.Read<uintptr_t>(
+        listEntry + (0x78 * (index & ENTITY_LIST_INDEX_MASK)));
     if (!controller) return 0;
 
     uint32_t pawnHandle = mem_.Read<uint32_t>(controller + offsets::m_hPawn);
     if (!pawnHandle) return 0;
 
     uintptr_t listEntry2 = mem_.Read<uintptr_t>(
-        entityList + (0x8 * ((pawnHandle & 0x7FFF) >> 9)) + 0x10);
+        entityList +
+        (0x8 * ((pawnHandle & 0x7FFF) >> ENTITY_LIST_INDEX_SHIFT)) + 0x10);
     if (!listEntry2) return 0;
 
-    return mem_.Read<uintptr_t>(listEntry2 + (0x78 * (pawnHandle & 0x1FF)));
+    return mem_.Read<uintptr_t>(listEntry2 +
+                                (0x78 * (pawnHandle & ENTITY_LIST_INDEX_MASK)));
   } catch (...) {
     return 0;
   }
 }
 
 void DataManager::UpdateLoop() {
+  auto lastFrameTime = system_clock::now();
+  static ViewMatrix_t lastValidViewMatrix;  // ADDED: Cache last good matrix
+
   while (running_) {
     GameData newData{};
     uint64_t currentTime =
@@ -184,21 +273,31 @@ void DataManager::UpdateLoop() {
         continue;
       }
 
+      // Batch read local player data
       Vector3 localOrigin =
           mem_.Read<Vector3>(localPawn + offsets::m_vOldOrigin);
-      newData.viewMatrix =
-          mem_.Read<ViewMatrix_t>(client_ + offsets::ViewMatrix);
+
+      // CHANGED: Use the new view matrix reading function
+      newData.viewMatrix = ReadViewMatrixWithRetry(mem_, client_);
+
       newData.localTeam = mem_.Read<int>(localPawn + offsets::m_iTeamNum);
       newData.localPlayerPawn = localPawn;
       newData.localOrigin = localOrigin;
 
-
- 
+      // ADDED: Validate local origin
+      if (localOrigin.IsZero() || !localOrigin.IsValid() ||
+          std::abs(localOrigin.x) > 100000.0f ||
+          std::abs(localOrigin.y) > 100000.0f) {
+        continue;  // Skip frame if origin is invalid
+      }
 
       // Entity list
       uintptr_t entityList =
           mem_.Read<uintptr_t>(client_ + offsets::EntityList);
       if (!entityList) continue;
+
+      // Pre-allocate to avoid reallocations
+      newData.entities.reserve(64);
 
       // Process entities
       for (int i = 0; i < 64; i++) {
@@ -211,39 +310,35 @@ void DataManager::UpdateLoop() {
         int team = mem_.Read<int>(pawn + offsets::m_iTeamNum);
         Vector3 entityOrigin = mem_.Read<Vector3>(pawn + offsets::m_vOldOrigin);
 
-   
-
-        // Read player name from controller
-        std::string playerName;
-        uintptr_t listEntry =
-            mem_.Read<uintptr_t>(entityList + (0x8 * (i >> 9)) + 0x10);
-        if (listEntry) {
-          uintptr_t controller =
-              mem_.Read<uintptr_t>(listEntry + (0x78 * (i & 0x1FF)));
-          if (controller) {
-            char nameBuffer[64] = {0};
-            mem_.Read(controller + 0x6E8, nameBuffer, sizeof(nameBuffer));
-            playerName = std::string(nameBuffer);
-            if (playerName.empty() || playerName[0] == '\0') {
-              playerName = "Unknown";
-            }
-          } else {
-            playerName = "Unknown";
-          }
-        } else {
-          playerName = "Unknown";
+        // Skip invalid origins early
+        if (entityOrigin.IsZero() || !entityOrigin.IsValid() ||
+            std::abs(entityOrigin.x) > 100000.0f ||
+            std::abs(entityOrigin.y) > 100000.0f) {
+          continue;
         }
 
-        // Calculate distance to local player
+        // Read player name from controller only if needed
+        std::string playerName = "Player";
+        if (globals::NameEsp) {
+          uintptr_t listEntry = mem_.Read<uintptr_t>(
+              entityList + (0x8 * (i >> ENTITY_LIST_INDEX_SHIFT)) + 0x10);
+          if (listEntry) {
+            uintptr_t controller = mem_.Read<uintptr_t>(
+                listEntry + (0x78 * (i & ENTITY_LIST_INDEX_MASK)));
+            if (controller) {
+              char nameBuffer[32] = {0};  // Reduced buffer size
+              mem_.Read(controller + 0x6E8, nameBuffer, sizeof(nameBuffer));
+              if (nameBuffer[0] != '\0') {
+                playerName = std::string(nameBuffer);
+              }
+            }
+          }
+        }
+
+        // Calculate distance using precomputed method
         float distance = 0.0f;
-        if (!entityOrigin.IsZero() && !localOrigin.IsZero()) {
-          float dx = entityOrigin.x - localOrigin.x;
-          float dy = entityOrigin.y - localOrigin.y;
-          float dz = entityOrigin.z - localOrigin.z;
-          float rawDistance = sqrtf(dx * dx + dy * dy + dz * dz);
-          distance =
-              rawDistance / 16.0f;  // Scale to meters (1 unit = 1/16 meter)
-   
+        if (!localOrigin.IsZero()) {
+          distance = localOrigin.Distance(entityOrigin) / 16.0f;
         }
 
         EntityInfo entity{};
@@ -252,49 +347,54 @@ void DataManager::UpdateLoop() {
         entity.team = team;
         entity.origin = entityOrigin;
         entity.lastUpdate = currentTime;
-        entity.name = playerName;
+        entity.name = std::move(playerName);  // Use move semantics
         entity.distance = distance;
 
-        // Always update bones when needed
+        // Bone handling
         bool shouldUpdateBones = ShouldUpdateBones(pawn, currentTime);
-
         if (shouldUpdateBones) {
-          // Read fresh bones using batch reading
           auto bones = ReadBones(pawn, entityOrigin);
           entity.bones = bones;
 
-          // Update cache
           std::lock_guard<std::mutex> lock(dataMutex_);
           boneCache[pawn] = bones;
           boneUpdateTimes[pawn] = currentTime;
           bonePositions[pawn] = entityOrigin;
         } else {
-          // Use interpolated bones from cache
           entity.bones = GetInterpolatedBones(pawn, currentTime);
         }
 
         // Set head position
-        if (!entity.bones[6].location.IsZero()) {
-          entity.head = entity.bones[6].location;
-        } else {
-          entity.head = entityOrigin + Vector3{0, 0, 72.0f};
-        }
+        entity.head = !entity.bones[6].location.IsZero() &&
+                              entity.bones[6].location.IsValid()
+                          ? entity.bones[6].location
+                          : entityOrigin + Vector3{0, 0, 72.0f};
 
-        newData.entities.push_back(entity);
+        newData.entities.push_back(std::move(entity));  // Use move semantics
       }
 
       newData.valid = true;
+      lastValidViewMatrix =
+          newData.viewMatrix;  // UPDATE: Cache the good matrix
 
     } catch (...) {
-      // error handling
+      // On error, use last valid view matrix
+      newData.viewMatrix = lastValidViewMatrix;
+      newData.valid = false;
     }
 
     // Update game data
     {
       std::lock_guard<std::mutex> lock(dataMutex_);
-      gameData_ = newData;
+      gameData_ = std::move(newData);  // Use move semantics
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(4));
+    // Precise sleep timing
+    auto now = system_clock::now();
+    auto elapsed = duration_cast<milliseconds>(now - lastFrameTime);
+    if (elapsed < std::chrono::milliseconds(4)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(4) - elapsed);
+    }
+    lastFrameTime = now;
   }
 }

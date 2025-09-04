@@ -71,10 +71,7 @@ void Aimbot::MoveMouseToPlayer(Vector3 target) {
   float dx = target.x - center_of_screen.x;
   float dy = target.y - center_of_screen.y;
 
-  // DEBUG
-  char debugBuf[128];
-  snprintf(debugBuf, sizeof(debugBuf), "Raw delta: (%.1f, %.1f)\n", dx, dy);
-  OutputDebugStringA(debugBuf);
+
 
   // COMPLETELY DIFFERENT APPROACH: Use angle-based movement
   // Convert pixel delta to angle delta (approximate)
@@ -94,9 +91,7 @@ void Aimbot::MoveMouseToPlayer(Vector3 target) {
   // int mouseDx = static_cast<int>(-angleX * 10.0f);
   // int mouseDy = static_cast<int>(-angleY * 10.0f);
 
-  char buf[128];
-  snprintf(buf, sizeof(buf), "Angle movement: (%d, %d)\n", mouseDx, mouseDy);
-  OutputDebugStringA(buf);
+
 
   mouse_event(MOUSEEVENTF_MOVE, mouseDx, mouseDy, 0, 0);
 }

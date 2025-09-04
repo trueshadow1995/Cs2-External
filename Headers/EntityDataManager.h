@@ -46,6 +46,8 @@ class DataManager {
   void StartUpdateThread();
   void StopUpdateThread();
 
+  bool ShouldUpdateBones(uint64_t pawn, uint64_t currentTime) const;
+
  private:
   std::array<CBoneData, globals::MAX_BONES> ReadBones(
       uint64_t pawn, const Vector3& entityOrigin);
