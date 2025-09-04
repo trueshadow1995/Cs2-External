@@ -1,4 +1,5 @@
-﻿#include <algorithm>
+﻿#include <windows.h>  // For OutputDebugStringA
+
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -12,16 +13,13 @@
 using namespace std::chrono;
 
 constexpr std::array<int, 32> ESSENTIAL_BONES = {
-    // Core skeleton
-    6, 5, 4, 3, 2, 0,  // Head to pelvis
-    8, 9, 10,          // Left arm
-    13, 14, 15,        // Right arm
-    22, 23, 30,    // Left leg
-    25, 26, 32,   // Right leg
-   
-    11, 12, 16, 17, 38, 39, 40, 66, 7, 18, 19, 37}; // dick bone someday ? 
+    6,  5,  4,  3,  2,  0,  // Head to pelvis
+    8,  9,  10,             // Left arm
+    13, 14, 15,             // Right arm
+    22, 23, 30,             // Left leg
+    25, 26, 32,             // Right leg
+    11, 12, 16, 17, 38, 39, 40, 66, 7, 18, 19, 37};
 
-//  cache duration  16ms
 constexpr uint64_t BONE_CACHE_DURATION = 14;
 
 GameData DataManager::GetGameData() {
@@ -64,7 +62,6 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::ReadBones(
   if (!pawn) return bones;
 
   try {
-    // Store previous bones for interpolation
     {
       std::lock_guard<std::mutex> lock(dataMutex_);
       auto prevIt = boneCache.find(pawn);
@@ -76,17 +73,14 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::ReadBones(
               .count();
     }
 
-    // Get CGameSceneNode
     uintptr_t gameSceneNode =
         mem_.Read<uintptr_t>(pawn + offsets::m_pGameSceneNode);
     if (!gameSceneNode) return bones;
 
-    // Read bone array pointer
     const uintptr_t boneArrayPtr =
         mem_.Read<uintptr_t>(gameSceneNode + offsets::m_modelState + 0x80);
     if (!boneArrayPtr) return bones;
 
-    // Use ReadBatch  all essential bones at once
     std::vector<uintptr_t> boneAddresses;
     boneAddresses.reserve(ESSENTIAL_BONES.size());
 
@@ -94,10 +88,8 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::ReadBones(
       boneAddresses.push_back(boneArrayPtr + boneId * sizeof(CBoneData));
     }
 
-    // Batch read all bones
     auto boneData = mem_.ReadBatch<CBoneData>(boneAddresses);
 
-    // Process the batch read results
     for (size_t i = 0; i < ESSENTIAL_BONES.size(); i++) {
       if (i < boneData.size() && !boneData[i].location.IsZero() &&
           !std::isnan(boneData[i].location.x)) {
@@ -106,7 +98,7 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::ReadBones(
     }
 
   } catch (...) {
-    // error handling once again 
+    // error handling
   }
 
   return bones;
@@ -132,13 +124,10 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
   const auto& previousBones = previousIt->second;
   uint64_t startTime = startTimeIt->second;
 
-  // interpolationTime is in milliseconds and should match cache frequency
-  float interpolationTime =
-      static_cast<float>(BONE_CACHE_DURATION);  // e.g. 14 ms
+  float interpolationTime = static_cast<float>(BONE_CACHE_DURATION);
   float elapsed = static_cast<float>(currentTime - startTime);
   float alpha = elapsed / interpolationTime;
 
-  // hard clamp to prevent overshoot
   if (alpha < 0.0f) alpha = 0.0f;
   if (alpha > 1.0f) alpha = 1.0f;
 
@@ -155,7 +144,6 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
 
   return interpolatedBones;
 }
-
 
 uintptr_t DataManager::GetEntityPawn(int index, uintptr_t entityList) {
   try {
@@ -184,7 +172,7 @@ void DataManager::UpdateLoop() {
   while (running_) {
     GameData newData{};
     uint64_t currentTime =
-        duration_cast<milliseconds>(system_clock::now().time_since_epoch()) // when corbi was born
+        duration_cast<milliseconds>(system_clock::now().time_since_epoch())
             .count();
 
     try {
@@ -192,8 +180,7 @@ void DataManager::UpdateLoop() {
       uintptr_t localPawn =
           mem_.Read<uintptr_t>(client_ + offsets::LocalPlayerPawn);
       if (!localPawn) {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(8));  // Faster sleep
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
         continue;
       }
 
@@ -203,13 +190,17 @@ void DataManager::UpdateLoop() {
           mem_.Read<ViewMatrix_t>(client_ + offsets::ViewMatrix);
       newData.localTeam = mem_.Read<int>(localPawn + offsets::m_iTeamNum);
       newData.localPlayerPawn = localPawn;
+      newData.localOrigin = localOrigin;
+
+
+ 
 
       // Entity list
       uintptr_t entityList =
           mem_.Read<uintptr_t>(client_ + offsets::EntityList);
       if (!entityList) continue;
 
-      // Process entities 
+      // Process entities
       for (int i = 0; i < 64; i++) {
         uintptr_t pawn = GetEntityPawn(i, entityList);
         if (!pawn || pawn == localPawn) continue;
@@ -220,12 +211,49 @@ void DataManager::UpdateLoop() {
         int team = mem_.Read<int>(pawn + offsets::m_iTeamNum);
         Vector3 entityOrigin = mem_.Read<Vector3>(pawn + offsets::m_vOldOrigin);
 
+   
+
+        // Read player name from controller
+        std::string playerName;
+        uintptr_t listEntry =
+            mem_.Read<uintptr_t>(entityList + (0x8 * (i >> 9)) + 0x10);
+        if (listEntry) {
+          uintptr_t controller =
+              mem_.Read<uintptr_t>(listEntry + (0x78 * (i & 0x1FF)));
+          if (controller) {
+            char nameBuffer[64] = {0};
+            mem_.Read(controller + 0x6E8, nameBuffer, sizeof(nameBuffer));
+            playerName = std::string(nameBuffer);
+            if (playerName.empty() || playerName[0] == '\0') {
+              playerName = "Unknown";
+            }
+          } else {
+            playerName = "Unknown";
+          }
+        } else {
+          playerName = "Unknown";
+        }
+
+        // Calculate distance to local player
+        float distance = 0.0f;
+        if (!entityOrigin.IsZero() && !localOrigin.IsZero()) {
+          float dx = entityOrigin.x - localOrigin.x;
+          float dy = entityOrigin.y - localOrigin.y;
+          float dz = entityOrigin.z - localOrigin.z;
+          float rawDistance = sqrtf(dx * dx + dy * dy + dz * dz);
+          distance =
+              rawDistance / 16.0f;  // Scale to meters (1 unit = 1/16 meter)
+   
+        }
+
         EntityInfo entity{};
         entity.pawn = pawn;
         entity.health = health;
         entity.team = team;
         entity.origin = entityOrigin;
         entity.lastUpdate = currentTime;
+        entity.name = playerName;
+        entity.distance = distance;
 
         // Always update bones when needed
         bool shouldUpdateBones = ShouldUpdateBones(pawn, currentTime);
@@ -258,7 +286,7 @@ void DataManager::UpdateLoop() {
       newData.valid = true;
 
     } catch (...) {
-      //error handling apparently 
+      // error handling
     }
 
     // Update game data
@@ -267,7 +295,6 @@ void DataManager::UpdateLoop() {
       gameData_ = newData;
     }
 
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(4));  // fuck around with the sleep to make it update quicker 
+    std::this_thread::sleep_for(std::chrono::milliseconds(4));
   }
 }

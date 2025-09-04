@@ -1,3 +1,4 @@
+#pragma once
 #include "../Headers/EntityDataManager.h"
 #include "../Headers/Globals.h"
 #include "../Headers/HealBarHelper.h"
@@ -10,65 +11,69 @@ namespace HealthBarHelper {
 void RenderHealth(const GameData& gameData, ImDrawList* drawList) {
   if (!drawList || !gameData.valid) return;
 
-  int localTeam = gameData.localTeam;
+  const int localTeam = gameData.localTeam;
   const ViewMatrix_t& viewMatrix = gameData.viewMatrix;
+  const ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+        // Fix: Replace .Size() with .size() for std::vector-like containers
+        ImFont* smallFont = ImGui::GetIO().Fonts->Fonts.size() > 0
+                                ? ImGui::GetIO().Fonts->Fonts[0]
+                                : nullptr;
+  const float screenWidth = screenSize.x;
+  const float screenHeight = screenSize.y;
+
 
   for (const auto& entity : gameData.entities) {
-    int entityHP = entity.health;
-    if (entityHP <= 0 || entityHP > 100) continue;
+    if (entity.health <= 0 || entity.health > 100) continue;
 
-    int team = entity.team;
-    Vector3 origin = entity.origin;
-    Vector3 head = entity.head;
-
-    Vector3 screenFeet{}, screenHead{};
-    if (!origin.WorldToScreen(viewMatrix, ImGui::GetIO().DisplaySize.x,
-                              ImGui::GetIO().DisplaySize.y, screenFeet))
-      continue;
-    if (!head.WorldToScreen(viewMatrix, ImGui::GetIO().DisplaySize.x,
-                            ImGui::GetIO().DisplaySize.y, screenHead))
-      continue;
-    if (screenFeet.z <= 0.001f || screenHead.z <= 0.001f) continue;
-
-    float height = screenFeet.y - screenHead.y;
-    float width = height / 2.4f;
-    ImVec2 topLeft(screenFeet.x - width / 2.f, screenHead.y);
-    ImVec2 bottomRight(screenFeet.x + width / 2.f, screenFeet.y);
-
-    bool isTeammate = (team == localTeam);
-
-    // Toggles for health bar and text
-    bool drawBar = (isTeammate && globals::TeammateHealth) ||
-                   (!isTeammate && globals::EnemyHealth);
-    bool drawText = (isTeammate && globals::TeammateHealthTxt) ||
-                    (!isTeammate && globals::EnemyHealthText);
+    const bool isTeammate = (entity.team == localTeam);
+    const bool drawBar = (isTeammate && globals::TeammateHealth) ||
+                         (!isTeammate && globals::EnemyHealth);
+    const bool drawText = (isTeammate && globals::TeammateHealthTxt) ||
+                          (!isTeammate && globals::EnemyHealthText);
 
     if (!drawBar && !drawText) continue;
 
-    float healthPercent = static_cast<float>(entityHP) / 100.0f;
+    // Early exit for off-screen entities
+    Vector3 screenFeet{}, screenHead{};
+    if (!entity.origin.WorldToScreen(viewMatrix, screenWidth, screenHeight,
+                                     screenFeet) ||
+        !entity.head.WorldToScreen(viewMatrix, screenWidth, screenHeight,
+                                   screenHead) ||
+        screenFeet.z <= 0.001f || screenHead.z <= 0.001f) {
+      continue;
+    }
+
+    // Check if entity is fully off-screen
+    if (screenFeet.x < -50.0f || screenFeet.x > screenWidth + 50.0f ||
+        screenFeet.y < -50.0f || screenFeet.y > screenHeight + 50.0f ||
+        screenHead.x < -50.0f || screenHead.x > screenWidth + 50.0f ||
+        screenHead.y < -50.0f || screenHead.y > screenHeight + 50.0f) {
+      continue;
+    }
+
+    // Precompute box dimensions
+    const float height = screenFeet.y - screenHead.y;
+    const float width = height / 2.4f;
+    const ImVec2 topLeft(screenFeet.x - width * 0.5f, screenHead.y);
+    const ImVec2 bottomRight(screenFeet.x + width * 0.5f, screenFeet.y);
+
+    const float healthPercent = static_cast<float>(entity.health) / 100.0f;
 
     // Health bar position
     const float healthBarWidth = 3.0f;
     const float healthBarPadding = 2.0f;
-    ImVec2 healthBarStart(topLeft.x - healthBarWidth - healthBarPadding,
-                          topLeft.y);
-    ImVec2 healthBarEnd(healthBarStart.x + healthBarWidth, bottomRight.y);
+    const ImVec2 healthBarStart(topLeft.x - healthBarWidth - healthBarPadding,
+                                topLeft.y);
+    const ImVec2 healthBarEnd(healthBarStart.x + healthBarWidth, bottomRight.y);
 
     if (drawBar) {
-      // HEALTH COLOR - ADDED PERCENTAGE-BASED COLORING BACK
+      // Health color
       ImColor healthColor;
-
       if (globals::HealthPercentage) {
-        // Percentage-based coloring (green/yellow/red)
-        if (healthPercent > 0.7f) {
-          healthColor = ImColor(0, 255, 0, 255);  // Green
-        } else if (healthPercent > 0.3f) {
-          healthColor = ImColor(255, 255, 0, 255);  // Yellow
-        } else {
-          healthColor = ImColor(255, 0, 0, 255);  // Red
-        }
+        healthColor = (healthPercent > 0.7f)   ? ImColor(0, 255, 0, 255)
+                      : (healthPercent > 0.3f) ? ImColor(255, 255, 0, 255)
+                                               : ImColor(255, 0, 0, 255);
       } else {
-        // Team-based coloring (from your globals)
         healthColor = isTeammate ? ImColor(globals::TeammateHealthColor[0],
                                            globals::TeammateHealthColor[1],
                                            globals::TeammateHealthColor[2],
@@ -79,49 +84,39 @@ void RenderHealth(const GameData& gameData, ImDrawList* drawList) {
                                            globals::EnemyHealthColor[3]);
       }
 
-      // Background
+      // Combined background and border
       drawList->AddRectFilled(healthBarStart, healthBarEnd,
                               IM_COL32(50, 50, 50, 255));
+      drawList->AddRect(healthBarStart, healthBarEnd, IM_COL32(0, 0, 0, 255),
+                        0.0f, 0, 1.0f);
 
-      // Filled portion (BOTTOM -> TOP)
-      float filledHeight = (bottomRight.y - topLeft.y) * healthPercent;
-      ImVec2 fillStart(healthBarStart.x, bottomRight.y - filledHeight);
-      ImVec2 fillEnd(healthBarEnd.x, bottomRight.y);
-
-      drawList->AddRectFilled(fillStart, fillEnd, healthColor);
-      drawList->AddRect(healthBarStart, healthBarEnd, IM_COL32(0, 0, 0, 255));
+      // Health fill
+      const float filledHeight = height * healthPercent;
+      const ImVec2 fillStart(healthBarStart.x, bottomRight.y - filledHeight);
+      drawList->AddRectFilled(fillStart, healthBarEnd, healthColor);
     }
 
-    // Health text - FIXED POSITION (doesn't move)
+    // Health text
     if (drawText) {
+      // Always initialize healthText
       char healthText[16];
-      if (globals::HealthPercentage)
-        snprintf(healthText, sizeof(healthText), "%d", entityHP);
+      snprintf(healthText, sizeof(healthText), "%d", entity.health);
 
-      // FIXED: Position text at the top of the health bar 
-      // health)
-      ImVec2 textPos(healthBarStart.x - 15.0f, healthBarStart.y - 2.0f);
-
+      const ImVec2 textPos(healthBarStart.x - 15.0f, healthBarStart.y - 2.0f);
       const float fontSize = 12.0f;
-      ImFont* smallFont = ImGui::GetIO().Fonts->Fonts[0];
 
-      // Outline
-      drawList->AddText(smallFont, fontSize,
-                        ImVec2(textPos.x - 1, textPos.y - 1),
-                        IM_COL32(0, 0, 0, 255), healthText);
-      drawList->AddText(smallFont, fontSize,
-                        ImVec2(textPos.x + 1, textPos.y - 1),
-                        IM_COL32(0, 0, 0, 255), healthText);
-      drawList->AddText(smallFont, fontSize,
-                        ImVec2(textPos.x - 1, textPos.y + 1),
-                        IM_COL32(0, 0, 0, 255), healthText);
-      drawList->AddText(smallFont, fontSize,
-                        ImVec2(textPos.x + 1, textPos.y + 1),
-                        IM_COL32(0, 0, 0, 255), healthText);
-
-      // Main text
-      drawList->AddText(smallFont, fontSize, textPos,
-                        IM_COL32(255, 255, 255, 255), healthText);
+      // Single shadow pass
+      if (smallFont) {
+        drawList->AddText(smallFont, fontSize,
+                          ImVec2(textPos.x + 1.0f, textPos.y + 1.0f),
+                          IM_COL32(0, 0, 0, 200), healthText);
+        drawList->AddText(smallFont, fontSize, textPos,
+                          IM_COL32(255, 255, 255, 255), healthText);
+      } else {
+        drawList->AddText(ImVec2(textPos.x + 1.0f, textPos.y + 1.0f),
+                          IM_COL32(0, 0, 0, 200), healthText);
+        drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), healthText);
+      }
     }
   }
 }

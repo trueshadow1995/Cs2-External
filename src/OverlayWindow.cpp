@@ -6,7 +6,7 @@
 
 #include <iostream>
 #include <thread>
-
+#include "../Headers/Aimbot.h"
 #include "../Headers/BoneHelper.h"
 #include "../Headers/EspHelper.h"
 #include "../Headers/Globals.h"
@@ -19,6 +19,12 @@
 #include "../ImGui/imgui.h"
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
+#include "../Headers/FovVisuals.h"
+
+// Precomputed constants
+constexpr const char* GAME_WINDOW_NAME = "Counter-Strike 2";
+constexpr UINT SYNC_INTERVAL_MS = 100;
+constexpr float CLEAR_COLOR[4] = {0.f, 0.f, 0.f, 0.f};
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd,
                                                              UINT msg,
@@ -53,14 +59,20 @@ Overlay::Overlay(Memory& memory)
       bbWidth(1920),
       bbHeight(1080),
       clientBase(0),
-      entityManager(nullptr) {
+      entityManager(nullptr),
+      aimbot(nullptr)  // ADD THIS INITIALIZATION
+{
   std::cout << "[DEBUG] Overlay constructor called\n";
 }
 
 Overlay::~Overlay() {
-  if (entityManager) delete entityManager;
+  delete entityManager;
+  delete aimbot;  // ADD THIS CLEANUP
+  entityManager = nullptr;
+  aimbot = nullptr;  // ADD THIS
   Shutdown();
 }
+
 
 inline void PrintColored(const std::string& msg, WORD color) {
   HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -84,7 +96,7 @@ bool Overlay::Init() {
   PrintColored("[INFO] Setting up Overlay...",
                FOREGROUND_BLUE | FOREGROUND_INTENSITY);
 
-  hwnd = FindWindowA(nullptr, "Counter-Strike 2");
+  hwnd = FindWindowA(nullptr, GAME_WINDOW_NAME);
   if (!hwnd) {
     PrintColored("[ERROR] Game Window Not Found!",
                  FOREGROUND_RED | FOREGROUND_INTENSITY);
@@ -102,6 +114,8 @@ bool Overlay::Init() {
   }
 
   entityManager = new DataManager(mem, clientBase);
+  // INITIALIZE AIMBOT HERE 
+  aimbot = new Aimbot(mem, clientBase);
 
   WNDCLASSEX wc{};
   wc.cbSize = sizeof(WNDCLASSEX);
@@ -137,12 +151,15 @@ bool Overlay::Init() {
   LogoHelper::Load(device);
 
   lastFrameTime = std::chrono::high_resolution_clock::now();
+
   std::cout << "[DEBUG] Overlay initialized!\n";
   return true;
 }
 
 void Overlay::RenderGameContent() {
   if (!entityManager) return;
+
+  WaterMark::Render();
 
   auto gameData = entityManager->GetGameData();
   if (!gameData.valid) return;
@@ -152,23 +169,37 @@ void Overlay::RenderGameContent() {
 
   float screenWidth = ImGui::GetIO().DisplaySize.x;
   float screenHeight = ImGui::GetIO().DisplaySize.y;
-  HealthBarHelper::RenderHealth(gameData, drawList);
-  for (const auto& entity : gameData.entities) {
-    ESPHelper::RenderEsp(mem, clientBase, entity, gameData.localPlayerPawn,
-                         gameData.localTeam, gameData.viewMatrix, drawList);
+  FovVisualizer::DrawFovCircle(drawList, screenWidth, screenHeight);
+  // Healthbars
+  if (globals::HealthBar) {
+    HealthBarHelper::RenderHealth(gameData, drawList);
+  }
 
-    bool hasBones = false;
-    for (const auto& bone : entity.bones) {
-      if (!bone.location.IsZero()) {
-        hasBones = true;
-        break;
-      }
+  // ESP boxes
+  if (globals::Esp) {
+    for (const auto& entity : gameData.entities) {
+      ESPHelper::RenderEsp(mem, clientBase, entity, gameData.localPlayerPawn,
+                           gameData.localTeam, gameData.viewMatrix, drawList);
     }
+  }
 
-    if (hasBones) {
-      bool isTeammate = (entity.team == gameData.localTeam);
-      BoneEsp::RenderBones(entity.bones, gameData.viewMatrix, screenWidth,
-                           screenHeight, drawList, isTeammate);
+  //bones
+  if (globals::Bones) {
+    for (const auto& entity : gameData.entities) {
+      bool hasBones = false;
+   
+      for (const auto& bone : entity.bones) {
+        if (!bone.location.IsZero()) {
+          hasBones = true;
+          break;
+        }
+      }
+      //bone debug
+      if (hasBones) {
+        bool isTeammate = (entity.team == gameData.localTeam);
+        BoneEsp::RenderBones(entity.bones, gameData.viewMatrix, screenWidth,
+                             screenHeight, drawList, isTeammate);
+      }
     }
   }
 }
@@ -212,7 +243,7 @@ bool Overlay::CreateRTVFromSwapChain() {
 
 void Overlay::SyncOverlayToGameWindow() {
   if (!hwnd) return;
-  HWND gameWnd = FindWindowA(nullptr, "Counter-Strike 2");
+  HWND gameWnd = FindWindowA(nullptr, GAME_WINDOW_NAME);
   if (!gameWnd) return;
 
   RECT gameRect{};
@@ -238,8 +269,20 @@ void Overlay::SyncOverlayToGameWindow() {
 }
 
 void Overlay::RenderFrame() {
-  if (!deviceContext || !renderTargetView) return;
-  SyncOverlayToGameWindow();
+  static int frameCounter = 0;
+  static auto lastSyncTime = std::chrono::high_resolution_clock::now();
+
+  frameCounter++;
+
+  // Only sync window position every 100ms or if menu is open
+  auto currentTime = std::chrono::high_resolution_clock::now();
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime -
+                                                            lastSyncTime)
+              .count() > SYNC_INTERVAL_MS ||
+      globals::menu_open) {
+    SyncOverlayToGameWindow();
+    lastSyncTime = currentTime;
+  }
 
   ImGui_ImplDX11_NewFrame();
   ImGui_ImplWin32_NewFrame();
@@ -248,12 +291,19 @@ void Overlay::RenderFrame() {
   UpdateImGuiInput();
   RenderGameContent();
 
-  if (globals::menu_open) Menu::Render();
+  // CALL AIMBOT HERE - ADD THESE LINES
+  if (entityManager && aimbot) {
+    auto gameData = entityManager->GetGameData();
+    if (gameData.valid) {
+      aimbot->doAimbot(gameData);
+    }
+  }
+
+  if (globals::menu_open) Menu::RenderMenu();
 
   ImGui::Render();
-  const float clearColor[4] = {0.f, 0.f, 0.f, 0.f};
   deviceContext->OMSetRenderTargets(1, &renderTargetView, nullptr);
-  deviceContext->ClearRenderTargetView(renderTargetView, clearColor);
+  deviceContext->ClearRenderTargetView(renderTargetView, CLEAR_COLOR);
   ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
   swapChain->Present(0, 0);
 }
@@ -261,7 +311,14 @@ void Overlay::RenderFrame() {
 void Overlay::Run() {
   std::cout << "[DEBUG] Running Overlay...\n";
   MSG msg{};
+  using namespace std::chrono;
+
+  const int targetFPS = 100;
+  const auto frameDuration = milliseconds(45 / targetFPS);
+
   while (running) {
+    auto frameStart = high_resolution_clock::now();
+
     while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
@@ -270,11 +327,23 @@ void Overlay::Run() {
         Shutdown();
       }
     }
+
     HandleInput();
+
+   
+
     if (running) RenderFrame();
+
+    auto frameEnd = high_resolution_clock::now();
+    auto elapsed = duration_cast<milliseconds>(frameEnd - frameStart);
+
+    if (elapsed < frameDuration) {
+      std::this_thread::sleep_for(frameDuration - elapsed);
+    }
   }
-  Shutdown();  // Ensure cleanup on exit
+  Shutdown();
 }
+
 
 void Overlay::HandleInput() {
   if (GetAsyncKeyState(VK_INSERT) & 1) {
@@ -282,14 +351,20 @@ void Overlay::HandleInput() {
     UpdateClickThrough();
   }
 
+  // Toggle aimbot with a different key (e.g., F key)
+  if (GetAsyncKeyState(0x46) & 1) {  // F key
+    globals::Aimbot = !globals::Aimbot;
+    std::cout << "[INFO] Aimbot " << (globals::Aimbot ? "enabled" : "disabled")
+              << "\n";
+  }
+
   // Close program on Delete key with proper shutdown
   if (GetAsyncKeyState(VK_DELETE) & 1) {
     std::cout << "[INFO] Delete key pressed - shutting down...\n";
     running = false;
-    PostQuitMessage(0);  // Signal the message loop to exit
+    PostQuitMessage(0);
   }
 }
-
 void Overlay::UpdateClickThrough() {
   if (!hwnd || !IsWindow(hwnd)) return;
   LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
@@ -324,11 +399,26 @@ void Overlay::Shutdown() {
   ImGui_ImplWin32_Shutdown();
   ImGui::DestroyContext();
 
-  if (renderTargetView) renderTargetView->Release();
-  if (swapChain) swapChain->Release();
-  if (deviceContext) deviceContext->Release();
-  if (device) device->Release();
-  if (hwnd && IsWindow(hwnd)) DestroyWindow(hwnd);
+  if (renderTargetView) {
+    renderTargetView->Release();
+    renderTargetView = nullptr;
+  }
+  if (swapChain) {
+    swapChain->Release();
+    swapChain = nullptr;
+  }
+  if (deviceContext) {
+    deviceContext->Release();
+    deviceContext = nullptr;
+  }
+  if (device) {
+    device->Release();
+    device = nullptr;
+  }
+  if (hwnd && IsWindow(hwnd)) {
+    DestroyWindow(hwnd);
+    hwnd = nullptr;
+  }
 
   FreeConsole();
 }

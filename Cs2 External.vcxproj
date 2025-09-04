@@ -132,12 +132,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Headers\Aimbot.h" />
     <ClInclude Include="Headers\BoneGlobal.h" />
     <ClInclude Include="Headers\BoneHelper.h" />
     <ClInclude Include="Headers\BoneMatrix.h" />
     <ClInclude Include="Headers\C_color.h" />
     <ClInclude Include="Headers\EntityDataManager.h" />
     <ClInclude Include="Headers\EspHelper.h" />
+    <ClInclude Include="Headers\FovVisuals.h" />
     <ClInclude Include="Headers\FpsCounter.h" />
     <ClInclude Include="Headers\Globals.h" />
     <ClInclude Include="Headers\HealBarHelper.h" />
@@ -173,6 +175,8 @@
     <ClCompile Include="src\BoneESP.cpp" />
     <ClCompile Include="src\EntityManager.cpp" />
     <ClCompile Include="src\Esp.cpp" />
+    <ClCompile Include="src\Esp\aimbot.cpp" />
+    <ClCompile Include="src\Esp\FovVisual.cpp" />
     <ClCompile Include="src\FpsCounter.cpp" />
     <ClCompile Include="src\HealthBars.cpp" />
     <ClCompile Include="src\Logo.cpp" />

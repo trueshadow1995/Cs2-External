@@ -1,22 +1,20 @@
 
 #include <windows.h>
 #include <tlhelp32.h>
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <format>
 #include <iostream>
-#include <array>
 #include <vector>
-#include <algorithm>
-#include <cmath>
 #include "../Headers/EntityDataManager.h"
 #include "../Headers/Memory.h"
 #include "../Headers/OverlayWindow.h"
-
 int APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
-
   // Wait for game process (cs2.exe)
   DWORD pid = 0;
   bool gameFound = false;
-  
+
   while (!gameFound) {
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot != INVALID_HANDLE_VALUE) {
@@ -72,14 +70,13 @@ int APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
     return 0;
   }
 
-Overlay overlay(mem); //start overlay
+  Overlay overlay(mem);  // start overlay
 
   std::cout << "[DEBUG] Initializing Overlay...\n";
   if (!overlay.Init()) {
     std::cerr << "[ERROR] Overlay initialization failed!\n";
     return -1;
   }
-
 
   overlay.Run();
 
@@ -89,8 +86,4 @@ Overlay overlay(mem); //start overlay
   std::cout << "[DEBUG] Overlay shutdown complete.\n";
   FreeConsole();
   return 0;
-  
- 
-
 }
-

@@ -1,29 +1,25 @@
-﻿#include "../Headers/Menu.h"
-
+﻿#pragma once
+#include "../Headers/Menu.h"
+#define NOMINMAX
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <stdexcept>
 
 #include "../Headers/Globals.h"
 #include "../Headers/LogoHelper.h"
+#include "../Headers/Styles.h"
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
 
-bool SafeColorEdit4(const char* label, float col[4],
-                    ImGuiColorEditFlags flags = 0) {
-  if (!col) return false;
-
-  float temp[4] = {col[0], col[1], col[2], col[3]};
-  bool result =
-      ImGui::ColorEdit4(label, temp, flags | ImGuiColorEditFlags_NoInputs);
-  if (result) {
-    col[0] = temp[0];
-    col[1] = temp[1];
-    col[2] = temp[2];
-    col[3] = temp[3];
-  }
-  return result;
-}
+// Precompute constants
+constexpr int MATRIX_CHAR_COUNT = 100;
+constexpr float MATRIX_RESPAWN_Y_OFFSET = -20.0f;
+constexpr float MATRIX_ALPHA_MULTIPLIER = 0.5f;
+constexpr ImGuiWindowFlags MAIN_WINDOW_FLAGS =
+    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse |
+    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+    ImGuiWindowFlags_NoScrollWithMouse;
 
 namespace Menu {
 bool menuOpen = false;
@@ -31,376 +27,373 @@ std::vector<std::string> matrixChars;
 std::vector<ImVec2> matrixPositions;
 std::vector<float> matrixSpeeds;
 std::vector<float> matrixAlphas;
+bool enableMatrixEffect = true;  // Added toggle for matrix effect
+
+static ImVec2 mainWindowPos;
+static bool mainWindowMoved = false;
+static bool matrixInitialized = false;
+
+// Precomputed tab data
+static constexpr const char* TAB_NAMES[] = {"AIM", "VISUALS", "MISC", "CONFIG"};
+static constexpr int TAB_COUNT = IM_ARRAYSIZE(TAB_NAMES);
+static constexpr float TAB_WIDTH = 100.0f;
+
+// Precomputed section data
+static constexpr const char* SECTION_NAMES[] = {
+    "Enemy Settings", "Teammate Settings", "Bones Settings", "Health Settings",
+    "Global Settings"};
+static constexpr int SECTION_COUNT = IM_ARRAYSIZE(SECTION_NAMES);
+static constexpr float SECTION_BUTTON_WIDTH = 120.0f;
+static constexpr float SECTION_POPUP_WIDTH = 130.0f;
+static constexpr float SECTION_POPUP_HEIGHT = 280.0f;
+
+bool SafeColorEdit4(const char* label, float col[4],
+                    ImGuiColorEditFlags flags = 0) {
+  if (!col) {
+    OutputDebugStringA("SafeColorEdit4: Null color pointer\n");
+    return false;
+  }
+
+  float temp[4] = {col[0], col[1], col[2], col[3]};
+  bool result =
+      ImGui::ColorEdit4(label, temp, flags | ImGuiColorEditFlags_NoInputs);
+  if (result) {
+    memcpy(col, temp, sizeof(float) * 4);
+  }
+  return result;
+}
 
 void InitMatrixEffect() {
+  if (matrixInitialized) return;
+
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<> charDis(33, 126);
-  std::uniform_real_distribution<> posDis(0, 1920);
-  std::uniform_real_distribution<> speedDis(80.0f, 250.0f);
+  std::uniform_real_distribution<float> posDis(
+      0.0f, 1920.0f);  // Use float for RAM saving
+  std::uniform_real_distribution<float> speedDis(80.0f, 250.0f);
 
   matrixChars.clear();
   matrixPositions.clear();
   matrixSpeeds.clear();
   matrixAlphas.clear();
 
-  for (int i = 0; i < 100; i++) {
-    matrixChars.push_back(std::string(1, static_cast<char>(charDis(gen))));
-    matrixPositions.push_back(ImVec2(posDis(gen), posDis(gen)));
-    matrixSpeeds.push_back(speedDis(gen));
-    matrixAlphas.push_back(1.0f);
+  matrixChars.reserve(MATRIX_CHAR_COUNT);
+  matrixPositions.reserve(MATRIX_CHAR_COUNT);
+  matrixSpeeds.reserve(MATRIX_CHAR_COUNT);
+  matrixAlphas.reserve(MATRIX_CHAR_COUNT);
+
+  for (int i = 0; i < MATRIX_CHAR_COUNT; i++) {
+    matrixChars.emplace_back(1, static_cast<char>(charDis(gen)));
+    matrixPositions.emplace_back(posDis(gen), posDis(gen));
+    matrixSpeeds.emplace_back(speedDis(gen));
+    matrixAlphas.emplace_back(1.0f);
+  }
+
+  matrixInitialized = true;
+}
+
+void RenderMatrixEffect(ImDrawList* drawList, const ImVec2& windowPos,
+                        const ImVec2& winSize) {
+  if (!matrixInitialized || !enableMatrixEffect) return;
+
+  const float deltaTime = ImGui::GetIO().DeltaTime;
+  const float time = ImGui::GetTime();
+
+  // Batch text rendering to reduce draw calls
+  for (size_t i = 0; i < matrixChars.size(); i++) {
+    matrixPositions[i].y += matrixSpeeds[i] * deltaTime;
+
+    if (matrixPositions[i].y > winSize.y + 20) {
+      matrixPositions[i].y = MATRIX_RESPAWN_Y_OFFSET;
+      matrixPositions[i].x =
+          static_cast<float>(rand() % static_cast<int>(winSize.x));
+      matrixAlphas[i] = 1.0f;
+    }
+
+    float alpha = 1.0f - (matrixPositions[i].y / winSize.y);
+    alpha = std::max(0.0f, alpha);
+    matrixAlphas[i] =
+        alpha * (MATRIX_ALPHA_MULTIPLIER +
+                 MATRIX_ALPHA_MULTIPLIER * sinf(time * 2.0f + i * 0.1f));
+
+    ImU32 color =
+        ImColor(30, 120, 180, static_cast<int>(255 * matrixAlphas[i]));
+    drawList->AddText(ImVec2(windowPos.x + matrixPositions[i].x,
+                             windowPos.y + matrixPositions[i].y),
+                      color, matrixChars[i].c_str());
   }
 }
 
-void Render() {
-  try {
-    if (!globals::menu_open) return;
-    if (!ImGui::GetCurrentContext()) return;
+void RenderTabs(int& current_tab, const ImVec2& winSize) {
+  const float spacing = ImGui::GetStyle().ItemSpacing.x;
+  const float totalTabsWidth =
+      TAB_WIDTH * TAB_COUNT + spacing * (TAB_COUNT - 1);
+  const float startX = (winSize.x - totalTabsWidth) * 0.5f;
 
-    if (matrixChars.empty()) {
-      InitMatrixEffect();
+  ImGui::BeginChild("Tabs", ImVec2(winSize.x, 30), false, 0);
+  ImGui::SetCursorPosX(startX);
+
+  for (int i = 0; i < TAB_COUNT; i++) {
+    if (i > 0) ImGui::SameLine(0, spacing);
+
+    const bool selected = (current_tab == i);
+    ImGui::PushStyleColor(ImGuiCol_Button,
+                          selected ? ImVec4(0.1f, 0.3f, 0.5f, 0.6f)
+                                   : ImVec4(0.06f, 0.06f, 0.10f, 0.4f));
+    ImGui::PushStyleColor(ImGuiCol_Text, selected
+                                             ? ImVec4(0.2f, 0.6f, 0.8f, 1.0f)
+                                             : ImVec4(0.6f, 0.6f, 0.6f, 0.9f));
+
+    if (ImGui::Button(TAB_NAMES[i], ImVec2(TAB_WIDTH, 25))) {
+      current_tab = i;
     }
 
-    // Clean styling - remove borders
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize,
-                        0.0f);  // No window border
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(6, 30));  // Top padding for header space
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 3));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 3.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 3));
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize,
-                        0.0f);  // No child borders
+    ImGui::PopStyleColor(2);
+  }
+  ImGui::EndChild();
+}
 
-    // Dark background with a little bit of transparence mauaha - no borders
-    // either
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(0.03f, 0.03f, 0.06f, 0.95f));
-    ImGui::PushStyleColor(
-        ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));  // Transparent border
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(0.9f, 0.9f, 0.9f, 0.95f));  // dimmed txt
-    ImGui::PushStyleColor(
-        ImGuiCol_ChildBg,
-        ImVec4(0.07f, 0.07f, 0.10f, 0.5f));  // dark child backgground
-    ImGui::PushStyleColor(
-        ImGuiCol_TitleBg,
-        ImVec4(0.05f, 0.05f, 0.08f, 0.95f));  // dark tittle background
-    ImGui::PushStyleColor(
-        ImGuiCol_TitleBgActive,
-        ImVec4(0.07f, 0.07f, 0.12f, 0.95f));  // dark active tittle background
+void RenderAimTab() {
+  ImGui::Text("Aimbot Settings");
+  
+ImGui::Checkbox("Enable Aimbot", &globals::Aimbot);
+  ImGui::Checkbox("Smoothing", &globals::AimbotSmoothing);
+  if (globals::AimbotSmoothing) {
+    ImGui::SliderFloat("Smooth Amount", &globals::Aimbotsmoothing, 0.01f, 1.0f,
+                       "%.2f");
+  }
+  ImGui::SliderFloat("FOV Size", &globals::AimbotFovSize, 1.0f, 500.0f, "%.1f");
+  ImGui::SliderFloat("Max Distance", &globals::AimbotMaxDistance, 0.0f, 5000.0f,
+                     "%.1f units");
+  ImGui::Combo("Aim Bone", &globals::AimbotBone, "Head\0Neck\0Chest\0Body\0");
 
-    // Fixed window size
-    ImGui::SetNextWindowSize({850, 650},
-                             ImGuiCond_Always);  // Increased size for boxes
-    ImGui::SetNextWindowBgAlpha(0.95f);
+  // Help text
+  ImGui::Text("Aim Key: Right Mouse Button");
+  ImGui::Text("Alternative: Mouse Side Buttons");
 
-    // Disable window resizing and add NoResize flag
-    if (!ImGui::Begin(
-            "Phil.9", &globals::menu_open,
-            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse |
-                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
-                ImGuiWindowFlags_NoScrollWithMouse)) {
-      ImGui::End();
-      ImGui::PopStyleVar(8);
-      ImGui::PopStyleColor(6);
+
+
+
+
+
+
+
+}
+
+void RenderVisualsTab() {
+  ImGui::Text("Visual Settings");
+  ImGui::Spacing();
+  ImGui::Spacing();
+
+  static bool showSection[SECTION_COUNT] = {false};
+  const float spacing =
+      ImGui::GetStyle().ItemSpacing.x + 20.0f;  // Increased spacing by 20px
+  const float totalButtonsWidth =
+      SECTION_COUNT * SECTION_BUTTON_WIDTH + (SECTION_COUNT - 1) * spacing;
+  const float startBtnX = (ImGui::GetWindowWidth() - totalButtonsWidth) * 0.5f;
+  const float buttonsY = ImGui::GetCursorPosY() + 60.0f;
+
+  ImVec2 buttonPositions[SECTION_COUNT];
+
+  // Render section buttons
+  for (int i = 0; i < SECTION_COUNT; i++) {
+    ImGui::SetCursorPosX(startBtnX + i * (SECTION_BUTTON_WIDTH + spacing));
+    ImGui::SetCursorPosY(buttonsY);
+    buttonPositions[i] = ImGui::GetCursorPos();
+
+    if (ImGui::Button(SECTION_NAMES[i], ImVec2(SECTION_BUTTON_WIDTH, 25))) {
+      showSection[i] = !showSection[i];
+    }
+  }
+
+  // Render checkboxes
+  const float checkboxOffsetY = -30.0f;
+  float espX =
+      (buttonPositions[0].x + buttonPositions[1].x + SECTION_BUTTON_WIDTH) *
+          0.5f -
+      10.0f;
+  ImGui::SetCursorPosX(espX);
+  ImGui::SetCursorPosY(buttonsY + checkboxOffsetY);
+  ImGui::Checkbox("ESP", &globals::Esp);
+
+  for (int i = 2; i < SECTION_COUNT; i++) {
+    ImGui::SetCursorPosX(buttonPositions[i].x);
+    ImGui::SetCursorPosY(buttonsY + checkboxOffsetY);
+    const char* labels[] = {"Bones", "Health Bars", "Head Marker"};
+    bool* values[] = {&globals::Bones, &globals::HealthBar,
+                      &globals::Headmarker};
+    ImGui::Checkbox(labels[i - 2], values[i - 2]);
+  }
+
+  // Render section popups with increased vertical spacing
+  for (int i = 0; i < SECTION_COUNT; i++) {
+    if (!showSection[i]) continue;
+
+    float popupX = buttonPositions[i].x +
+                   (SECTION_BUTTON_WIDTH - SECTION_POPUP_WIDTH) * 0.5f;
+    float popupY =
+        buttonsY +
+        40.0f;  // Increased from 35px to 40px for more vertical space
+
+    ImGui::SetCursorPosX(popupX);
+    ImGui::SetCursorPosY(popupY);
+
+    ImGui::BeginChild(SECTION_NAMES[i],
+                      ImVec2(SECTION_POPUP_WIDTH, SECTION_POPUP_HEIGHT), true,
+                      ImGuiWindowFlags_NoMove);
+
+    switch (i) {
+      case 0:  // Enemy Settings
+      ImGui::Checkbox("Enemy EspBox", &globals::EnemyEsp);
+      ImGui::Checkbox("Enemy Health", &globals::EnemyHealth);
+        
+      ImGui::Checkbox("Enemy Health txt", &globals::EnemyHealthText);
+     
+        
+        
+        
+        
+        
+        break;
+      case 1:  // Teammate Settings
+        ImGui::Checkbox("Friendly EspBox", &globals::TeammateEsp);
+        ImGui::Checkbox("Friendly HealthBar", &globals::TeammateHealth);
+       
+        ImGui::Checkbox("Team Health txt", &globals::TeammateHealthTxt);
+        
+        
+        
+        break;
+      case 2:  // Bones Settings
+        ImGui::Checkbox("Enemy Bones", &globals::EnemyBones);
+        ImGui::Spacing();
+        ImGui::Checkbox("Friendly Bones", &globals::FriendlyBones);
+
+
+        break;
+      case 3:  // Health Settings
+        ImGui::Checkbox("Color Gradiant", &globals::HealthBar);
+        
+        ImGui::Checkbox("Enemy Health txt",&globals::EnemyHealthText);
+       
+        ImGui::Checkbox("Team Health txt", &globals::TeammateHealthTxt);
+          
+          
+          break;
+      case 4:  // Global Settings
+        break;
+    }
+
+    ImGui::EndChild();
+  }
+}
+
+void RenderMiscTab() {
+  ImGui::Text("Miscellaneous Settings");
+  ImGui::Spacing();
+  ImGui::Checkbox("FPS Counter", &globals::FpsCounter);
+  ImGui::Checkbox("Water Mark", &globals::WaterMark);
+  ImGui::Checkbox("Matrix Effect", &enableMatrixEffect);  // Added toggle
+  ImGui::Spacing();
+  ImGui::Text("Performance:");
+  ImGui::BulletText("FPS: %.0f", ImGui::GetIO().Framerate);
+  ImGui::BulletText("Frame Time: %.2f ms", 1000.0f / ImGui::GetIO().Framerate);
+}
+
+void RenderConfigTab() {
+  ImGui::Text("Configuration");
+  ImGui::Spacing();
+
+  const float buttonWidth = 120.0f;
+  if (ImGui::Button("Save Config", ImVec2(buttonWidth, 25))) {
+    // Save config implementation
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load Config", ImVec2(buttonWidth, 25))) {
+    // Load config implementation
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Reset Config", ImVec2(buttonWidth, 25))) {
+    // Reset config implementation
+  }
+}
+
+void RenderMenu() {
+  try {
+    if (!globals::menu_open || !ImGui::GetCurrentContext()) {
+      OutputDebugStringA("RenderMenu: Menu closed or ImGui context invalid\n");
       return;
     }
 
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    ImVec2 winPos = ImGui::GetWindowPos();
-    ImVec2 winSize = ImGui::GetWindowSize();
-    float time = ImGui::GetTime();
+    if (!matrixInitialized) InitMatrixEffect();
+    Styles::Apply();
 
-    // Matrix rain background
-    for (size_t i = 0; i < matrixChars.size(); i++) {
-      matrixPositions[i].y += matrixSpeeds[i] * ImGui::GetIO().DeltaTime;
-      if (matrixPositions[i].y > winSize.y + 20) {
-        matrixPositions[i].y = -20;
-        matrixPositions[i].x =
-            static_cast<float>(rand() % static_cast<int>(winSize.x));
-        matrixAlphas[i] = 1.0f;
-      }
+    const ImVec2 prevMainWindowPos = mainWindowPos;
 
-      float alpha = (1.0f - (matrixPositions[i].y / winSize.y)) < 0.0f
-                        ? 0.0f
-                        : (1.0f - (matrixPositions[i].y / winSize.y));
-      matrixAlphas[i] = alpha * (0.5f + 0.5f * sinf(time * 2.0f + i * 0.1f));
-      ImU32 color =
-          ImColor(30, 120, 180, static_cast<int>(255 * matrixAlphas[i]));
+    if (ImGui::Begin("Phil.9", &globals::menu_open, MAIN_WINDOW_FLAGS)) {
+      mainWindowPos = ImGui::GetWindowPos();
+      mainWindowMoved = (prevMainWindowPos.x != mainWindowPos.x ||
+                         prevMainWindowPos.y != mainWindowPos.y);
 
-      drawList->AddText(ImVec2(winPos.x + matrixPositions[i].x,
-                               winPos.y + matrixPositions[i].y),
-                        color, matrixChars[i].c_str());
-    }
+      ImDrawList* drawList = ImGui::GetWindowDrawList();
+      const ImVec2 winSize = ImGui::GetWindowSize();
 
-    // Logo in top-left
-    ImGui::SetCursorPos(ImVec2(20, 30));
-    LogoHelper::Render();
+      RenderMatrixEffect(drawList, mainWindowPos, winSize);
 
-    // Tabs row
-    ImGui::SetCursorPos(
-        ImVec2(5, 100));  // Spacing from top for logo and better look
-    static int current_tab = 0;
-    const char* tab_names[] = {"AIM", "VIS", "ESP", "GLOW", "MISC", "CFG"};
+      ImGui::SetCursorPos(ImVec2(20, 30));
+      LogoHelper::Render();
 
-    // Create a centered tab bar with proper padding
-    float tab_bar_width = winSize.x;  // full width of the window
-    float total_tabs_width =
-        (70 * IM_ARRAYSIZE(tab_names)) +
-        (ImGui::GetStyle().ItemSpacing.x *
-         (IM_ARRAYSIZE(tab_names) - 1));  // 70 is button width
-    float tab_bar_padding =
-        (tab_bar_width - total_tabs_width) / 2;  // centering tabs
+      static int current_tab = 0;
+      RenderTabs(current_tab, winSize);
 
-    ImGui::BeginChild("Tabs", ImVec2(winSize.x, 30), false, 0);  // no border
-    {
-      // Set cursor position with proper padding
-      ImGui::SetCursorPosX(tab_bar_padding);
+      ImGui::SetCursorPos(ImVec2(10, 160));
+      ImGui::BeginChild("Content", ImVec2(winSize.x - 20, winSize.y - 170),
+                        true, 0);
 
-      for (int i = 0; i < IM_ARRAYSIZE(tab_names); i++) {  // tab buttons
-        if (i > 0) ImGui::SameLine();
-
-        bool is_selected = (current_tab == i);  // highlight current tab
-        if (is_selected) {
-          ImGui::PushStyleColor(ImGuiCol_Button,
-                                ImVec4(0.1f, 0.3f, 0.5f, 0.6f));
-          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
-        } else {
-          ImGui::PushStyleColor(ImGuiCol_Button,
-                                ImVec4(0.06f, 0.06f, 0.10f, 0.4f));
-          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 0.9f));
-        }
-
-        if (ImGui::Button(tab_names[i], ImVec2(70, 25))) {
-          current_tab = i;
-        }
-        ImGui::PopStyleColor(2);
-      }
-    }
-    ImGui::EndChild();
-
-    // Main content area - starts below tabs with proper padding
-    ImGui::SetCursorPos(ImVec2(10, 140));  // Adjusted for better spacing
-    ImGui::BeginChild("Content", ImVec2(winSize.x - 20, winSize.y - 150), true,
-                      0);
-    {
-      // dark content background for better text visibility
       drawList->AddRectFilled(
           ImGui::GetWindowPos(),
           ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowWidth(),
                  ImGui::GetWindowPos().y + ImGui::GetWindowHeight()),
           ImColor(8, 8, 12, 100), 4.0f);
 
-      ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                          ImVec2(15, 8));  // Increased padding
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 8));
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.85f, 0.85f, 0.95f));
 
-      // Tab content with box organization
       switch (current_tab) {
-        case 0:  // Aimbot
-          ImGui::Text("Aimbot Settings");
-         
-          ImGui::Checkbox("Fov circle", &globals::Fov);
-          ImGui::SameLine();
-          SafeColorEdit4("Fov Circle Color", globals::FovColor);
-          ImGui::SliderFloat("AimbotFov", &globals::AimbotFovSize, 0.f, 90.f,
-                             "%.0f");
+        case 0:
+          RenderAimTab();
           break;
-
-        case 1:  // Visuals
-          ImGui::Text("Visual Settings");
-         
-
-          // First row - Player ESP boxes
-          ImGui::BeginChild("PlayerESPRow", ImVec2(0, 100), false, 0);
-          {
-            ImGui::Columns(2, "PlayerESPColumns", false);
-
-            // Enemy ESP Box
-            ImGui::BeginChild("EnemyBox", ImVec2(0, 90), true, 0);
-            {
-              ImGui::Text("Enemy ESP");
-              ImGui::Checkbox("Enable", &globals::EnemyEsp);
-              ImGui::Checkbox("Background", &globals::EnemyEspBackground);
-              SafeColorEdit4("Color", globals::EnemyEspColor);
-              SafeColorEdit4("BG Color", globals::EnemyEspBackGroundColor);
-            }
-            ImGui::EndChild();
-
-            ImGui::NextColumn();
-
-            // Teammate ESP Box
-            ImGui::BeginChild("TeammateBox", ImVec2(0, 90), true, 0);
-            {
-              ImGui::Text("Teammate ESP");
-              ImGui::Checkbox("Enable", &globals::TeammateEsp);
-              ImGui::Checkbox("Background", &globals::TeammateEspBackground);
-              SafeColorEdit4("Color", globals::TeammateEspColor);
-              SafeColorEdit4("BG Color", globals::FriendlyEspBackGroundColor);
-            }
-            ImGui::EndChild();
-
-            ImGui::Columns(1);
-          }
-          ImGui::EndChild();
-
-          // Second row - Health boxes
-          ImGui::BeginChild("HealthRow", ImVec2(0, 100), false, 0);
-          {
-            ImGui::Columns(2, "HealthColumns", false);
-
-            // Enemy Health Box
-            ImGui::BeginChild("EnemyHealthBox", ImVec2(0, 90), true, 0);
-            {
-              ImGui::Text("Enemy Health");
-              ImGui::Checkbox("Health Bar", &globals::EnemyHealth);
-              ImGui::Checkbox("Health Text", &globals::EnemyHealthText);
-              SafeColorEdit4("Color", globals::EnemyHealthColor);
-            }
-            ImGui::EndChild();
-
-            ImGui::NextColumn();
-
-            // Teammate Health Box
-            ImGui::BeginChild("TeammateHealthBox", ImVec2(0, 90), true, 0);
-            {
-              ImGui::Text("Teammate Health");
-              ImGui::Checkbox("Health Bar", &globals::TeammateHealth);
-              ImGui::Checkbox("Health Text", &globals::TeammateHealthTxt);
-              SafeColorEdit4("Color", globals::TeammateHealthColor);
-            }
-            ImGui::EndChild();
-
-            ImGui::Columns(1);
-          }
-          ImGui::EndChild();
-
-          // Third row - Bones boxes
-          ImGui::BeginChild("BonesRow", ImVec2(0, 120), false, 0);
-          {
-            ImGui::Columns(2, "BonesColumns", false);
-
-            // Enemy Bones Box
-            ImGui::BeginChild("EnemyBonesBox", ImVec2(0, 110), true, 0);
-            {
-              ImGui::Text("Enemy Bones");
-              ImGui::Checkbox("Enable", &globals::EnemyBones);
-              ImGui::SliderFloat("Thickness", &globals::BoneEspThickness, 0.f,
-                                 10.f, "%.1f");
-              SafeColorEdit4("Color", globals::EnemyBoneColor);
-            }
-            ImGui::EndChild();
-
-            ImGui::NextColumn();
-
-            // Teammate Bones Box
-            ImGui::BeginChild("TeammateBonesBox", ImVec2(0, 110), true, 0);
-            {
-              ImGui::Text("Teammate Bones");
-              ImGui::Checkbox("Enable", &globals::FriendlyBones);
-              ImGui::SliderFloat("Thickness", &globals::BoneEspThickness, 0.f,
-                                 10.f, "%.1f");
-              SafeColorEdit4("Color", globals::TeammateBoneColor);
-            }
-            ImGui::EndChild();
-
-            ImGui::Columns(1);
-          }
-          ImGui::EndChild();
-
-          // Fourth row - Misc Visuals
-          ImGui::BeginChild("MiscVisualsRow", ImVec2(0, 100), false, 0);
-          {
-            ImGui::Columns(2, "MiscVisualsColumns", false);
-
-            // Head Marker Box
-            ImGui::BeginChild("HeadMarkerBox", ImVec2(0, 90), true, 0);
-            {
-              ImGui::Text("Head Marker");
-              ImGui::Checkbox("Enable", &globals::Headmarker);
-              ImGui::SliderFloat("Size", &globals::Headmarkersize, 1.f, 15.f,
-                                 "%.1f");
-              ImGui::ColorEdit3("Color", globals::headMakerColor,
-                                ImGuiColorEditFlags_NoInputs);
-            }
-            ImGui::EndChild();
-
-            ImGui::NextColumn();
-
-            // Health Settings Box
-            ImGui::BeginChild("HealthSettingsBox", ImVec2(0, 90), true, 0);
-            {
-              ImGui::Text("Health Settings");
-              ImGui::Checkbox("Raw HP Gradient", &globals::HealthPercentage);
-              ImGui::Checkbox("Bone Debug", &globals::BoneDebug);
-            }
-            ImGui::EndChild();
-
-            ImGui::Columns(1);
-          }
-          ImGui::EndChild();
+        case 1:
+          RenderVisualsTab();
           break;
-
-        case 2:  // ESP
-          ImGui::Text("ESP Settings");
-          ImGui::Separator();
-          // Additional ESP features can go here
+        case 2:
+          RenderMiscTab();
           break;
-
-        case 3:  // GLOW
-          ImGui::Text("Glow Settings");
-          ImGui::Separator();
-          // Glow settings can go here
-          break;
-
-        case 4:  // MISC
-          ImGui::Text("Misc Settings");
-          ImGui::Separator();
-          ImGui::Checkbox("FPS Counter", &globals::FpsCounter);
-          ImGui::Checkbox("Water Mark", &globals::WaterMark);
-
-          ImGui::Spacing();
-          ImGui::Separator();
-          ImGui::Spacing();
-
-          ImGui::Text("Performance:");
-          ImGui::BulletText("FPS: %.0f", ImGui::GetIO().Framerate);
-          ImGui::BulletText("Frame Time: %.2f ms",
-                            1000.0f / ImGui::GetIO().Framerate);
-          break;
-
-        case 5:  // CFG
-          ImGui::Text("Config Settings");
-          ImGui::Separator();
-          if (ImGui::Button("Save Config", ImVec2(120, 25))) {
-          }
-          ImGui::SameLine();
-          if (ImGui::Button("Load Config", ImVec2(120, 25))) {
-          }
-          ImGui::SameLine();
-          if (ImGui::Button("Reset Config", ImVec2(120, 25))) {
-          }
+        case 3:
+          RenderConfigTab();
           break;
       }
 
       ImGui::PopStyleColor();
       ImGui::PopStyleVar();
-    }
-    ImGui::EndChild();
+      ImGui::EndChild();
 
-    ImGui::End();
+      ImGui::End();
+      mainWindowMoved = false;
+    } else {
+      ImGui::End();
+    }
+
     ImGui::PopStyleVar(8);
     ImGui::PopStyleColor(6);
 
   } catch (const std::exception& e) {
     OutputDebugStringA(
-        ("Menu::Render exception: " + std::string(e.what()) + "\n").c_str());
+        ("Menu::RenderMenu exception: " + std::string(e.what()) + "\n")
+            .c_str());
   } catch (...) {
-    OutputDebugStringA("Menu::Render unknown exception\n");
+    OutputDebugStringA("Menu::RenderMenu unknown exception\n");
   }
 }
-
-}  // namespace menu
+}  // namespace Menu

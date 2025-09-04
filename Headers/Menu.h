@@ -3,5 +3,5 @@
 
 namespace Menu {
 extern bool menuOpen;  // state toggle
-void Render();     // declaration only
+void RenderMenu();     // declaration only
 }  // namespace Menu

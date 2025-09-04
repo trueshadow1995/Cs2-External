@@ -3,13 +3,13 @@
 #include <windows.h>
 
 #include <chrono>
-
+#include "../Headers/Aimbot.h"  // ADD THIS LINE
 #include "../Headers/EntityDataManager.h"
 #include "../Headers/Memory.h"
 
 class Overlay {
  public:
-  Overlay(Memory& memory);
+  Overlay(Memory& memory);  
   ~Overlay();
 
   bool Init();
@@ -20,6 +20,9 @@ class Overlay {
   HINSTANCE hInstance;
   HWND hwnd;
   bool running;
+  Aimbot* aimbot;  // ADD THIS MEMBER
+
+
   IDXGISwapChain* swapChain;
   ID3D11Device* device;
   ID3D11DeviceContext* deviceContext;
@@ -31,7 +34,7 @@ class Overlay {
   DataManager* entityManager;
   Memory& mem;
 
-  void InitConsole();
+  void InitConsole(); //<- DEBUG purposes ;) 
   bool CreateDX11();
   bool CreateRTVFromSwapChain();
   void RenderFrame();
@@ -39,7 +42,7 @@ class Overlay {
   void HandleInput();
   void UpdateClickThrough();
   void UpdateImGuiInput();
-  void SyncOverlayToGameWindow();  // <--- was missing from header
+  void SyncOverlayToGameWindow(); 
 
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam,
                                      LPARAM lParam);

@@ -105,7 +105,16 @@ class Memory {
                            PAGE_EXECUTE_READWRITE)) &&
            !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
   }
-
+  bool Read(uintptr_t address, void* buffer, size_t size) const noexcept {
+    if (processHandle && address && buffer && size > 0) {
+      SIZE_T bytesRead = 0;
+      return ReadProcessMemory(processHandle,
+                               reinterpret_cast<const void*>(address), buffer,
+                               size, &bytesRead) &&
+             bytesRead == size;
+    }
+    return false;
+  }
   HANDLE GetHandle() const noexcept { return processHandle; }
   DWORD GetProcessId() const noexcept { return processId; }
   bool IsValid() const noexcept {

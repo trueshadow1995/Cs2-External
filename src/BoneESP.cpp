@@ -58,6 +58,5 @@ void RenderBones(const std::array<CBoneData, globals::MAX_BONES>& bones,
       }
     }
   }
-
-}  
+}
 }  // namespace BoneEsp
