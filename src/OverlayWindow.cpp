@@ -10,7 +10,6 @@
 #include "../Headers/Aimbot.h"
 #include "../Headers/BoneHelper.h"
 #include "../Headers/EspHelper.h"
-#include "../Headers/FovVisuals.h"
 #include "../Headers/Globals.h"
 #include "../Headers/HealBarHelper.h"
 #include "../Headers/LogoHelper.h"
@@ -21,6 +20,7 @@
 #include "../ImGui/imgui.h"
 #include "../ImGui/imgui_impl_dx11.h"
 #include "../ImGui/imgui_impl_win32.h"
+#include "../Headers/FovVisuals.h"
 
 // Precomputed constants
 constexpr const char* GAME_WINDOW_NAME = "Counter-Strike 2";
@@ -66,18 +66,12 @@ Overlay::Overlay(Memory& memory)
 }
 
 Overlay::~Overlay() {
+  StopAimbot();
   delete entityManager;
   delete aimbot;
   entityManager = nullptr;
   aimbot = nullptr;
   Shutdown();
-}
-
-inline void PrintColored(const std::string& msg, WORD color) {
-  HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-  SetConsoleTextAttribute(hConsole, color);
-  std::cout << msg << std::endl;
-  SetConsoleTextAttribute(hConsole, 7);
 }
 
 void Overlay::InitConsole() {
@@ -86,19 +80,16 @@ void Overlay::InitConsole() {
   freopen_s(&file, "CONOUT$", "w", stdout);
   freopen_s(&file, "CONOUT$", "w", stderr);
 
-  PrintColored("[DEBUG] 🟢 Overlay console initialized!",
-               FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+  std::cout << "[DEBUG] Overlay console initialized!" << std::endl;
 }
 
 bool Overlay::Init() {
   InitConsole();
-  PrintColored("[INFO] Setting up Overlay...",
-               FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+  std::cout << "[INFO] Setting up Overlay..." << std::endl;
 
   hwnd = FindWindowA(nullptr, GAME_WINDOW_NAME);
   if (!hwnd) {
-    PrintColored("[ERROR] Game Window Not Found!",
-                 FOREGROUND_RED | FOREGROUND_INTENSITY);
+    std::cout << "[ERROR] Game Window Not Found!" << std::endl;
     return false;
   }
 
@@ -112,8 +103,9 @@ bool Overlay::Init() {
     return false;
   }
 
+
   entityManager = new DataManager(mem, clientBase);
-  aimbot = new Aimbot(mem, clientBase);
+  aimbot = new Aimbot(*entityManager);
 
   WNDCLASSEX wc{};
   wc.cbSize = sizeof(WNDCLASSEX);
@@ -143,16 +135,32 @@ bool Overlay::Init() {
   if (!CreateDX11()) return false;
 
   ImGui::CreateContext();
+  ImGui::GetIO().DisplaySize = ImVec2(1920.0f, 1080.0f);
   Styles::Apply();
   ImGui_ImplWin32_Init(hwnd);
   ImGui_ImplDX11_Init(device, deviceContext);
   LogoHelper::Load(device);
-
   lastFrameTime = std::chrono::high_resolution_clock::now();
+
+  // Start the aimbot thread
+  StartAimbot();
 
   std::cout << "[DEBUG] Overlay initialized!\n";
   return true;
 }
+
+void Overlay::StartAimbot() {
+  if (aimbot) {
+    aimbot->Start();
+  }
+}
+
+void Overlay::StopAimbot() {
+  if (aimbot) {
+    aimbot->Stop();
+  }
+}
+
 
 void Overlay::RenderGameContent() {
   if (!entityManager) return;
@@ -168,7 +176,59 @@ void Overlay::RenderGameContent() {
   float screenWidth = ImGui::GetIO().DisplaySize.x;
   float screenHeight = ImGui::GetIO().DisplaySize.y;
 
-  FovVisualizer::DrawFovCircle(drawList, screenWidth, screenHeight);
+  // Draw crosshair (completely independent)
+  FovVisualizer::DrawCrosshair(drawList, screenWidth, screenHeight);
+
+  // Check if there are targets in FOV for advanced mode
+  bool hasTargetsInFov = false;
+  if (globals::FovCircle && globals::FovStyle == 2) {
+    // Calculate screen center
+    ImVec2 screenCenter(screenWidth / 2, screenHeight / 2);
+    float fovRadius = globals::AimbotFovSize;
+
+    // Check each entity to see if it's within FOV
+    for (const auto& entity : gameData.entities) {
+      if (entity.pawn && entity.pawn != gameData.localPlayerPawn &&
+          entity.health > 0 && entity.team != gameData.localTeam) {
+        // Convert entity head position to screen coordinates
+        Vector3 screenHead;
+        if (entity.head.WorldToScreen(gameData.viewMatrix, screenWidth,
+                                      screenHeight, screenHead) &&
+            screenHead.z > 0) {
+          // Check if within FOV circle
+          float dx = screenHead.x - screenCenter.x;
+          float dy = screenHead.y - screenCenter.y;
+          float distanceSquared = dx * dx + dy * dy;
+
+          if (distanceSquared <= fovRadius * fovRadius) {
+            hasTargetsInFov = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Draw FOV circle based on selected style
+  if (globals::FovCircle) {
+    switch (globals::FovStyle) {
+      case 0:  // Animated
+        FovVisualizer::DrawAnimatedFovCircle(drawList, screenWidth,
+                                             screenHeight);
+        break;
+      case 1:  // Simple
+        FovVisualizer::DrawFovCircle(drawList, screenWidth, screenHeight);
+        break;
+      case 2:  // Advanced
+        FovVisualizer::DrawFovCircleAdvanced(drawList, screenWidth,
+                                             screenHeight, hasTargetsInFov);
+        break;
+      default:
+        FovVisualizer::DrawAnimatedFovCircle(drawList, screenWidth,
+                                             screenHeight);
+        break;
+    }
+  }
 
   // Healthbars
   if (globals::HealthBar) {
@@ -183,12 +243,11 @@ void Overlay::RenderGameContent() {
     }
   }
 
-  // Bones - optimized with early checks
+  // Bones
   if (globals::Bones) {
     for (const auto& entity : gameData.entities) {
-      // Quick check if any bones are valid before detailed iteration
       bool hasBones = false;
-      for (int i = 0; i < 10; ++i) {  // Check first few bones only
+      for (int i = 0; i < 10; ++i) {
         if (i < globals::MAX_BONES && !entity.bones[i].location.IsZero()) {
           hasBones = true;
           break;
@@ -208,11 +267,11 @@ bool Overlay::CreateDX11() {
   DXGI_SWAP_CHAIN_DESC sd{};
   ZeroMemory(&sd, sizeof(sd));
   sd.BufferCount = 2;
-  sd.BufferDesc.Width = bbWidth;
-  sd.BufferDesc.Height = bbHeight;
+  sd.BufferDesc.Width = 1920;
+  sd.BufferDesc.Height = 1080;
   sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  sd.BufferDesc.RefreshRate.Numerator = 0;    // Disable VSync
-  sd.BufferDesc.RefreshRate.Denominator = 1;  // Disable VSync
+  sd.BufferDesc.RefreshRate.Numerator = 0;
+  sd.BufferDesc.RefreshRate.Denominator = 1;
   sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   sd.OutputWindow = hwnd;
   sd.SampleDesc.Count = 1;
@@ -231,6 +290,10 @@ bool Overlay::CreateDX11() {
     std::cout << "[ERROR] Failed to create DX11 device\n";
     return false;
   }
+
+  bbWidth = 1920;
+  bbHeight = 1080;
+
   return CreateRTVFromSwapChain();
 }
 
@@ -248,40 +311,40 @@ bool Overlay::CreateRTVFromSwapChain() {
 void Overlay::SyncOverlayToGameWindow() {
   if (!hwnd) return;
 
-  static HWND lastGameWnd = nullptr;
-  static RECT lastGameRect = {0};
-
   HWND gameWnd = FindWindowA(nullptr, GAME_WINDOW_NAME);
   if (!gameWnd) return;
 
   RECT gameRect{};
   if (!GetWindowRect(gameWnd, &gameRect)) return;
 
-  // Only update if window actually moved/resized
-  if (gameWnd != lastGameWnd || gameRect.left != lastGameRect.left ||
-      gameRect.top != lastGameRect.top ||
-      gameRect.right != lastGameRect.right ||
-      gameRect.bottom != lastGameRect.bottom) {
-    int gameWidth = gameRect.right - gameRect.left;
-    int gameHeight = gameRect.bottom - gameRect.top;
+  SetWindowPos(hwnd, HWND_TOPMOST, gameRect.left, gameRect.top, 1920, 1080,
+               SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
-    SetWindowPos(hwnd, HWND_TOPMOST, gameRect.left, gameRect.top, gameWidth,
-                 gameHeight, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+  if (bbWidth != 1920 || bbHeight != 1080) {
+    bbWidth = 1920;
+    bbHeight = 1080;
 
-    if (gameWidth != bbWidth || gameHeight != bbHeight) {
-      bbWidth = gameWidth;
-      bbHeight = gameHeight;
-      if (renderTargetView) {
-        renderTargetView->Release();
-        renderTargetView = nullptr;
-      }
-      swapChain->ResizeBuffers(0, bbWidth, bbHeight, DXGI_FORMAT_UNKNOWN, 0);
-      CreateRTVFromSwapChain();
-      ImGui::GetIO().DisplaySize = ImVec2((float)bbWidth, (float)bbHeight);
+    if (renderTargetView) {
+      renderTargetView->Release();
+      renderTargetView = nullptr;
     }
 
-    lastGameWnd = gameWnd;
-    lastGameRect = gameRect;
+    HRESULT hr =
+        swapChain->ResizeBuffers(0, 1920, 1080, DXGI_FORMAT_UNKNOWN, 0);
+    if (FAILED(hr)) {
+      std::cout << "[ERROR] Failed to resize swap chain buffers: " << std::hex
+                << hr << std::dec << "\n";
+      Shutdown();
+      Init();
+      return;
+    }
+
+    if (!CreateRTVFromSwapChain()) {
+      std::cout << "[ERROR] Failed to recreate RTV after resize\n";
+      return;
+    }
+
+    ImGui::GetIO().DisplaySize = ImVec2(1920.0f, 1080.0f);
   }
 }
 
@@ -291,7 +354,6 @@ void Overlay::RenderFrame() {
 
   frameCounter++;
 
-  // Only sync window position every 100ms or if menu is open
   auto currentTime = std::chrono::high_resolution_clock::now();
   if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime -
                                                             lastSyncTime)
@@ -308,14 +370,6 @@ void Overlay::RenderFrame() {
   UpdateImGuiInput();
   RenderGameContent();
 
-  // Aimbot call
-  if (entityManager && aimbot) {
-    auto gameData = entityManager->GetGameData();
-    if (gameData.valid) {
-      aimbot->doAimbot(gameData);
-    }
-  }
-
   if (globals::menu_open) Menu::RenderMenu();
 
   ImGui::Render();
@@ -330,9 +384,8 @@ void Overlay::Run() {
   MSG msg{};
   using namespace std::chrono;
 
-  const int targetFPS = 100;
-  const auto frameDuration =
-      microseconds(30000 / targetFPS);  // Correct calculation
+  const int targetFPS = 500;
+  const auto frameDuration = microseconds(105000 / targetFPS);
 
   while (running) {
     auto frameStart = high_resolution_clock::now();
@@ -364,12 +417,6 @@ void Overlay::HandleInput() {
   if (GetAsyncKeyState(VK_INSERT) & 1) {
     globals::menu_open = !globals::menu_open;
     UpdateClickThrough();
-  }
-
-  if (GetAsyncKeyState(0x46) & 1) {  // F key
-    globals::Aimbot = !globals::Aimbot;
-    std::cout << "[INFO] Aimbot " << (globals::Aimbot ? "enabled" : "disabled")
-              << "\n";
   }
 
   if (GetAsyncKeyState(VK_DELETE) & 1) {
@@ -407,6 +454,8 @@ void Overlay::UpdateImGuiInput() {
 }
 
 void Overlay::Shutdown() {
+  StopAimbot();
+
   if (entityManager) entityManager->StopUpdateThread();
 
   ImGui_ImplDX11_Shutdown();

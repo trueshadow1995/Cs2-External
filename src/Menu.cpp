@@ -1,6 +1,13 @@
 ﻿#pragma once
 #include "../Headers/Menu.h"
 #define NOMINMAX
+
+// Define missing mouse button constants if not already defined
+#ifndef VK_XBUTTON1
+#define VK_XBUTTON1 0x05
+#define VK_XBUTTON2 0x06
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <random>
@@ -27,7 +34,7 @@ std::vector<std::string> matrixChars;
 std::vector<ImVec2> matrixPositions;
 std::vector<float> matrixSpeeds;
 std::vector<float> matrixAlphas;
-bool enableMatrixEffect = true;  // Added toggle for matrix effect
+bool enableMatrixEffect = true;
 
 static ImVec2 mainWindowPos;
 static bool mainWindowMoved = false;
@@ -47,12 +54,21 @@ static constexpr float SECTION_BUTTON_WIDTH = 120.0f;
 static constexpr float SECTION_POPUP_WIDTH = 130.0f;
 static constexpr float SECTION_POPUP_HEIGHT = 280.0f;
 
+// HelpMarker function for tooltips
+void HelpMarker(const char* desc) {
+  ImGui::TextDisabled("(?)");
+  if (ImGui::IsItemHovered()) {
+    ImGui::BeginTooltip();
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+    ImGui::TextUnformatted(desc);
+    ImGui::PopTextWrapPos();
+    ImGui::EndTooltip();
+  }
+}
+
 bool SafeColorEdit4(const char* label, float col[4],
                     ImGuiColorEditFlags flags = 0) {
-  if (!col) {
-    OutputDebugStringA("SafeColorEdit4: Null color pointer\n");
-    return false;
-  }
+  if (!col) return false;
 
   float temp[4] = {col[0], col[1], col[2], col[3]};
   bool result =
@@ -69,8 +85,7 @@ void InitMatrixEffect() {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<> charDis(33, 126);
-  std::uniform_real_distribution<float> posDis(
-      0.0f, 1920.0f);  // Use float for RAM saving
+  std::uniform_real_distribution<float> posDis(0.0f, 1920.0f);
   std::uniform_real_distribution<float> speedDis(80.0f, 250.0f);
 
   matrixChars.clear();
@@ -100,7 +115,6 @@ void RenderMatrixEffect(ImDrawList* drawList, const ImVec2& windowPos,
   const float deltaTime = ImGui::GetIO().DeltaTime;
   const float time = ImGui::GetTime();
 
-  // Batch text rendering to reduce draw calls
   for (size_t i = 0; i < matrixChars.size(); i++) {
     matrixPositions[i].y += matrixSpeeds[i] * deltaTime;
 
@@ -156,25 +170,129 @@ void RenderTabs(int& current_tab, const ImVec2& winSize) {
 
 void RenderAimTab() {
   ImGui::Text("Aimbot Settings");
-  
-ImGui::Checkbox("Enable Aimbot", &globals::Aimbot);
-  ImGui::Checkbox("Smoothing", &globals::AimbotSmoothing);
-  if (globals::AimbotSmoothing) {
-    ImGui::SliderFloat("Smooth Amount", &globals::Aimbotsmoothing, 0.01f, 1.0f,
-                       "%.2f");
+  ImGui::Checkbox("Enable Aimbot", &globals::Aimbot);
+  ImGui::SameLine(0,30);
+  HelpMarker("Toggle the aimbot functionality");
+  if (ImGui::Checkbox("Show Crosshair", &globals::CrossHair)) {
+    // The state is automatically updated
   }
+ 
+
+  ImGui::Checkbox("Enable Smoothing", &globals::AimbotUseSmoothing);
+  ImGui::SameLine(0,15);
+  HelpMarker("Makes aimbot movement look more human-like");
+
+  if (globals::AimbotUseSmoothing) {
+    ImGui::SliderFloat("Smooth Amount", &globals::AimbotSmoothAmount, 0.01f,
+                       1.0f, "%.2f");
+    ImGui::Spacing();
+    ImGui::Spacing();
+    
+    ImGui::SameLine();
+    HelpMarker("Higher values = smoother but slower aiming");
+  }
+  ImGui::Checkbox("Fov Circle", &globals::FovCircle);
   ImGui::SliderFloat("FOV Size", &globals::AimbotFovSize, 1.0f, 500.0f, "%.1f");
+  ImGui::SameLine();
+  HelpMarker("Field of view for target detection");
+  // Add FOV style selector
+  if (globals::FovCircle) {
+    ImGui::Combo("FOV Style", &globals::FovStyle,
+                 "Animated\0Simple\0Advanced\0");
+  }
   ImGui::SliderFloat("Max Distance", &globals::AimbotMaxDistance, 0.0f, 5000.0f,
                      "%.1f units");
+
+  HelpMarker("Maximum distance to target enemies");
+
   ImGui::Combo("Aim Bone", &globals::AimbotBone, "Head\0Neck\0Chest\0Body\0");
 
-  // Help text
-  ImGui::Text("Aim Key: Right Mouse Button");
-  ImGui::Text("Alternative: Mouse Side Buttons");
+  HelpMarker("Which body part to aim at");
+
+  // Key binding for aimbot
+  ImGui::Text("Aim Key: ");
 
 
+  static bool bindingKey = false;
+  static char keyName[32];
 
+  // Function to convert key code to name
+  auto GetKeyName = [](int key) -> const char* {
+    switch (key) {
+      case VK_LBUTTON:
+        return "Left Mouse";
+      case VK_RBUTTON:
+        return "Right Mouse";
+      case VK_MBUTTON:
+        return "Middle Mouse";
+      case VK_XBUTTON1:
+        return "Mouse Side 1";
+      case VK_XBUTTON2:
+        return "Mouse Side 2";
+      case VK_SHIFT:
+        return "Shift";
+      case VK_CONTROL:
+        return "Ctrl";
+      case VK_MENU:
+        return "Alt";
+      case VK_SPACE:
+        return "Space";
+      case VK_CAPITAL:
+        return "Caps Lock";
+      case VK_TAB:
+        return "Tab";
+      case VK_RETURN:
+        return "Enter";
+      case VK_ESCAPE:
+        return "Escape";
+      case VK_BACK:
+        return "Backspace";
+      case VK_DELETE:
+        return "Delete";
+      default:
+        // For letter keys
+        if (key >= 'A' && key <= 'Z') {
+          snprintf(keyName, sizeof(keyName), "%c", key);
+          return keyName;
+        }
+        // For number keys
+        else if (key >= '0' && key <= '9') {
+          snprintf(keyName, sizeof(keyName), "%c", key);
+          return keyName;
+        }
+        // For function keys
+        else if (key >= VK_F1 && key <= VK_F12) {
+          snprintf(keyName, sizeof(keyName), "F%d", key - VK_F1 + 1);
+          return keyName;
+        }
+        return "Unknown";
+    }
+  };
 
+  // Display current key and BIND button
+  ImGui::Text("%s", GetKeyName(globals::AimbotKey));
+  ImGui::SameLine();
+
+  if (ImGui::Button("BIND", ImVec2(60, 0))) {
+    bindingKey = true;
+  }
+
+if (bindingKey) {
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Press any key...");
+
+    // Check for ALL key presses including mouse buttons
+    for (int key = 1; key < 256; key++) {  
+        if (GetAsyncKeyState(key) & 0x8000) {
+            globals::AimbotKey = key;
+            bindingKey = false;
+            break;
+        }
+    }
+}
+
+  ImGui::SameLine();
+  HelpMarker("Click BIND and press any key to set aimbot activation");
 
 
 
@@ -187,8 +305,7 @@ void RenderVisualsTab() {
   ImGui::Spacing();
 
   static bool showSection[SECTION_COUNT] = {false};
-  const float spacing =
-      ImGui::GetStyle().ItemSpacing.x + 20.0f;  // Increased spacing by 20px
+  const float spacing = ImGui::GetStyle().ItemSpacing.x + 20.0f;
   const float totalButtonsWidth =
       SECTION_COUNT * SECTION_BUTTON_WIDTH + (SECTION_COUNT - 1) * spacing;
   const float startBtnX = (ImGui::GetWindowWidth() - totalButtonsWidth) * 0.5f;
@@ -226,15 +343,13 @@ void RenderVisualsTab() {
     ImGui::Checkbox(labels[i - 2], values[i - 2]);
   }
 
-  // Render section popups with increased vertical spacing
+  // Render section popups
   for (int i = 0; i < SECTION_COUNT; i++) {
     if (!showSection[i]) continue;
 
     float popupX = buttonPositions[i].x +
                    (SECTION_BUTTON_WIDTH - SECTION_POPUP_WIDTH) * 0.5f;
-    float popupY =
-        buttonsY +
-        40.0f;  // Increased from 35px to 40px for more vertical space
+    float popupY = buttonsY + 40.0f;
 
     ImGui::SetCursorPosX(popupX);
     ImGui::SetCursorPosY(popupY);
@@ -245,47 +360,59 @@ void RenderVisualsTab() {
 
     switch (i) {
       case 0:  // Enemy Settings
-      ImGui::Checkbox("Enemy EspBox", &globals::EnemyEsp);
-      ImGui::Checkbox("Enemy Health", &globals::EnemyHealth);
-        
-      ImGui::Checkbox("Enemy Health txt", &globals::EnemyHealthText);
-     
-        
-        
-        
-        
-        
+        ImGui::Checkbox("Enemy EspBox", &globals::EnemyEsp);
+        ImGui::Checkbox("Corner Style", &globals::CornerEspBoxStyle);
+        ImGui::Checkbox("Enemy Name ESP", &globals::EnemyNameEsp);
+        ImGui::Checkbox("Enemy Distance ESP", &globals::EnemyDistanceEsp);
+        ImGui::Spacing();
+        ImGui::Text("Enemy Colors:");
+        SafeColorEdit4("Box Color", globals::EnemyEspColor);
+        SafeColorEdit4("Background Color", globals::EnemyEspBackGroundColor);
         break;
+
       case 1:  // Teammate Settings
         ImGui::Checkbox("Friendly EspBox", &globals::TeammateEsp);
-        ImGui::Checkbox("Friendly HealthBar", &globals::TeammateHealth);
-       
-        ImGui::Checkbox("Team Health txt", &globals::TeammateHealthTxt);
-        
-        
-        
+        ImGui::Checkbox("Friendly Name ESP", &globals::TeammateNameEsp);
+        ImGui::Checkbox("Friendly Distance ESP", &globals::TeammateDistanceEsp);
+        ImGui::Spacing();
+        ImGui::Text("Teammate Colors:");
+        SafeColorEdit4("Box Color", globals::TeammateEspColor);
+        SafeColorEdit4("Background Color", globals::FriendlyEspBackGroundColor);
         break;
+
       case 2:  // Bones Settings
         ImGui::Checkbox("Enemy Bones", &globals::EnemyBones);
-        ImGui::SliderFloat("Max Distance", &globals::BoneEspThickness, 0.0f,
-                           10.f);
-        ImGui::Spacing();
         ImGui::Checkbox("Friendly Bones", &globals::FriendlyBones);
-        ImGui::SliderFloat("Max Distance", &globals::BoneEspThickness, 0.0f,
-                           10.f);
-
-
+        ImGui::SliderFloat("Bone Thickness", &globals::BoneEspThickness, 0.0f,
+                           10.0f, "%.1f");
+        ImGui::Checkbox("Bone Debug", &globals::BoneDebug);
+        ImGui::Spacing();
+        ImGui::Text("Bone Colors:");
+        SafeColorEdit4("Enemy Bones", globals::EnemyBoneColor);
+        SafeColorEdit4("Friendly Bones", globals::TeammateBoneColor);
         break;
+
       case 3:  // Health Settings
-        ImGui::Checkbox("Color Gradiant", &globals::HealthBar);
-        
-        ImGui::Checkbox("Enemy Health txt",&globals::EnemyHealthText);
-       
-        ImGui::Checkbox("Team Health txt", &globals::TeammateHealthTxt);
-          
-          
-          break;
+        ImGui::Checkbox("Enemy Health Bar", &globals::EnemyHealth);
+        ImGui::Checkbox("Enemy Health Text", &globals::EnemyHealthText);
+        ImGui::Checkbox("Team Health Bar", &globals::TeammateHealth);
+        ImGui::Checkbox("Team Health Text", &globals::TeammateHealthTxt);
+        ImGui::Spacing();
+        ImGui::Text("Health Colors:");
+        SafeColorEdit4("Enemy Health", globals::EnemyHealthColor);
+        SafeColorEdit4("Team Health", globals::TeammateHealthColor);
+        break;
+
       case 4:  // Global Settings
+        ImGui::Checkbox("Name ESP", &globals::NameEsp);
+        ImGui::Checkbox("Distance ESP", &globals::DistanceEsp);
+        ImGui::Checkbox("ESP Background", &globals::PlayerEspBackGround);
+        ImGui::Spacing();
+        SafeColorEdit4("Name Color", globals::PlayerNameColor);
+        SafeColorEdit4("Distance Color", globals::PlayerDistanceColor);
+        SafeColorEdit4("Head Marker Color", globals::headMakerColor);
+        ImGui::SliderFloat("Head Marker Size", &globals::Headmarkersize, 1.0f,
+                           10.0f, "%.1f");
         break;
     }
 
@@ -298,7 +425,9 @@ void RenderMiscTab() {
   ImGui::Spacing();
   ImGui::Checkbox("FPS Counter", &globals::FpsCounter);
   ImGui::Checkbox("Water Mark", &globals::WaterMark);
-  ImGui::Checkbox("Matrix Effect", &enableMatrixEffect);  // Added toggle
+  ImGui::Checkbox("Matrix Effect", &enableMatrixEffect);
+
+  ImGui::Spacing();
   ImGui::Spacing();
   ImGui::Text("Performance:");
   ImGui::BulletText("FPS: %.0f", ImGui::GetIO().Framerate);
@@ -321,14 +450,16 @@ void RenderConfigTab() {
   if (ImGui::Button("Reset Config", ImVec2(buttonWidth, 25))) {
     // Reset config implementation
   }
+
+  ImGui::Spacing();
+  ImGui::Text("Mouse Sensitivity:");
+  ImGui::SliderFloat("##Sensitivity", &globals::MouseSensitivity, 0.1f, 10.0f,
+                     "%.1f");
 }
 
 void RenderMenu() {
   try {
-    if (!globals::menu_open || !ImGui::GetCurrentContext()) {
-      OutputDebugStringA("RenderMenu: Menu closed or ImGui context invalid\n");
-      return;
-    }
+    if (!globals::menu_open || !ImGui::GetCurrentContext()) return;
 
     if (!matrixInitialized) InitMatrixEffect();
     Styles::Apply();

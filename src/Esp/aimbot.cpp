@@ -1,156 +1,154 @@
-
 #include "../Headers/Aimbot.h"
 
-#include <windows.h>
+#include <dwmapi.h>
 
-#include <cfloat>  // For FLT_MAX
 #include <chrono>
-#include <cmath>
 #include <iostream>
-#include <vector>
 
-#include "../Headers/EntityDataManager.h"
-#include "../Headers/Globals.h"
-#include "../Headers/Memory.h"
-#include "../Headers/Offsets.h"
+// Helper functions
+namespace AimbotUtils {
+inline float clamp(float value, float minVal, float maxVal) {
+  return (value < minVal) ? minVal : (value > maxVal) ? maxVal : value;
+}
 
-float Aimbot::manual_min(float a, float b) { return (a < b) ? a : b; }
+inline float distanceSquared(float x1, float y1, float x2, float y2) {
+  float dx = x2 - x1;
+  float dy = y2 - y1;
+  return dx * dx + dy * dy;
+}
+}  // namespace AimbotUtils
 
-float Aimbot::manual_max(float a, float b) { return (a > b) ? a : b; }
+Aimbot::Aimbot(DataManager& entityManager) : entityManager(entityManager) {
+  UpdateScreenDimensions();
+  fovSquared = globals::AimbotFovSize * globals::AimbotFovSize;
+}
 
-Vector3 Aimbot::findClosest(const GameData& gameData) {
-  if (playerPositions.empty()) {
-    OutputDebugStringA("playerPositions vector was empty.\n");
-    return {0.0f, 0.0f, 0.0f};
-  }
+Aimbot::~Aimbot() { Stop(); }
 
-  Vector3 center_of_screen{(float)GetSystemMetrics(SM_CXSCREEN) / 2,
-                           (float)GetSystemMetrics(SM_CYSCREEN) / 2, 0.0f};
-  float lowestDistanceSquared = FLT_MAX;
-  int index = -1;
-
-  float fovThreshold = globals::AimbotFovSize * globals::AimbotFovSize;
-  if (fovThreshold <= 0.0f) fovThreshold = 100.0f;
-
-  for (int i = 0; i < playerPositions.size(); ++i) {
-    float dx = playerPositions[i].x - center_of_screen.x;
-    float dy = playerPositions[i].y - center_of_screen.y;
-    float distanceSquared = dx * dx + dy * dy;
-
-    if (distanceSquared > fovThreshold) continue;
-
-    if (distanceSquared < lowestDistanceSquared) {
-      lowestDistanceSquared = distanceSquared;
-      index = i;
+void Aimbot::UpdateScreenDimensions() {
+  // Get the game window dimensions instead of system metrics
+  HWND gameWindow = FindWindowA(nullptr, "Counter-Strike 2");
+  if (gameWindow) {
+    RECT rect;
+    if (GetWindowRect(gameWindow, &rect)) {
+      screenWidth = static_cast<float>(rect.right - rect.left);
+      screenHeight = static_cast<float>(rect.bottom - rect.top);
+      screenCenter = Vector3(screenWidth / 2.0f, screenHeight / 2.0f, 0.0f);
+      return;
     }
   }
 
-  if (index != -1) {
-    char buf[128];
-    snprintf(buf, sizeof(buf),
-             "Closest target at (%.1f, %.1f), distance: %.1f\n",
-             playerPositions[index].x, playerPositions[index].y,
-             std::sqrt(lowestDistanceSquared));
-    OutputDebugStringA(buf);
-    return playerPositions[index];
-  }
-
-  OutputDebugStringA("No valid closest target found within FOV.\n");
-  return {0.0f, 0.0f, 0.0f};
+  // Fallback to system metrics if game window not found
+  screenWidth = static_cast<float>(GetSystemMetrics(SM_CXSCREEN));
+  screenHeight = static_cast<float>(GetSystemMetrics(SM_CYSCREEN));
+  screenCenter = Vector3(screenWidth / 2.0f, screenHeight / 2.0f, 0.0f);
 }
 
-void Aimbot::MoveMouseToPlayer(Vector3 target) {
-  if (target.IsZero()) {
-    OutputDebugStringA("Target is zero, skipping movement.\n");
-    return;
-  }
-
-  Vector3 center_of_screen{(float)GetSystemMetrics(SM_CXSCREEN) / 2,
-                           (float)GetSystemMetrics(SM_CYSCREEN) / 2, 0.0f};
-
-  float dx = target.x - center_of_screen.x;
-  float dy = target.y - center_of_screen.y;
-
-
-
-  // COMPLETELY DIFFERENT APPROACH: Use angle-based movement
-  // Convert pixel delta to angle delta (approximate)
-  const float PIXELS_TO_ANGLE = 0.022f;  // Adjust this value
-
-  float angleX = dx * PIXELS_TO_ANGLE;
-  float angleY = dy * PIXELS_TO_ANGLE;
-
-  // Convert angle to mouse movement (this is game-specific)
-  // Try different inversion combinations
-
-  // Option 1: Direct angle conversion
-  int mouseDx = static_cast<int>(angleX * 10.0f);
-  int mouseDy = static_cast<int>(angleY * 10.0f);
-
-  // Option 2: Inverted
-  // int mouseDx = static_cast<int>(-angleX * 10.0f);
-  // int mouseDy = static_cast<int>(-angleY * 10.0f);
-
-
-
-  mouse_event(MOUSEEVENTF_MOVE, mouseDx, mouseDy, 0, 0);
+bool Aimbot::IsValidTarget(const EntityInfo& entity, uintptr_t localPawn,
+                           int localTeam) const {
+  return entity.pawn && entity.pawn != localPawn && entity.health > 0 &&
+         entity.team != localTeam;
 }
 
-Aimbot::Aimbot(Memory& memory, uintptr_t clientBase)
-    : mem(memory), client(clientBase) {
-  playerPositions.reserve(64);
-}
-
-void Aimbot::doAimbot(const GameData& gameData) {
-  if (!gameData.valid) {
-    OutputDebugStringA("GameData is invalid.\n");
-    return;
-  }
-
-  if (!globals::Aimbot) {
-    return;
-  }
+Vector3 Aimbot::findClosestTarget(const GameData& gameData) {
+  if (!gameData.valid) return Vector3(0.0f, 0.0f, 0.0f);
 
   const ViewMatrix_t& viewMatrix = gameData.viewMatrix;
-  if (viewMatrix[0][0] == 0.0f && viewMatrix[1][1] == 0.0f) {
-    OutputDebugStringA("ViewMatrix is invalid.\n");
-    return;
-  }
-
   const int localTeam = gameData.localTeam;
   const uintptr_t localPawn = gameData.localPlayerPawn;
-  const float screenWidth = (float)GetSystemMetrics(SM_CXSCREEN);
-  const float screenHeight = (float)GetSystemMetrics(SM_CYSCREEN);
 
-  playerPositions.clear();
-  int validTargets = 0;
+  float closestDistance = FLT_MAX;
+  Vector3 closestTarget(0.0f, 0.0f, 0.0f);
 
+  // Update screen dimensions in case they changed
+  UpdateScreenDimensions();
+
+  // Find closest target to screen center
   for (const auto& entity : gameData.entities) {
-    if (!entity.pawn || entity.pawn == localPawn || entity.health <= 0 ||
-        entity.team == localTeam) {
-      continue;
-    }
+    if (!IsValidTarget(entity, localPawn, localTeam)) continue;
 
+    // Use the pre-calculated head position from entity data
     Vector3 screenHead;
     if (entity.head.WorldToScreen(viewMatrix, screenWidth, screenHeight,
-                                  screenHead)) {
-      if (screenHead.x >= 0 && screenHead.x <= screenWidth &&
-          screenHead.y >= 0 && screenHead.y <= screenHeight) {
-        playerPositions.push_back(screenHead);
-        validTargets++;
+                                  screenHead) &&
+        screenHead.z > 0) {
+      // Check if within FOV using squared distance for performance
+      float distSq = AimbotUtils::distanceSquared(
+          screenHead.x, screenHead.y, screenCenter.x, screenCenter.y);
+
+      if (distSq <= fovSquared && distSq < closestDistance) {
+        closestDistance = distSq;
+        closestTarget = screenHead;
       }
     }
   }
 
-  char buf[128];
-  snprintf(buf, sizeof(buf), "Found %d valid targets on screen.\n",
-           validTargets);
-  OutputDebugStringA(buf);
+  return closestTarget;
+}
 
-  if ((GetAsyncKeyState(VK_RBUTTON) & 0x8000) || globals::AimBotAutofire) {
-    Vector3 closest = findClosest(gameData);
-    if (!closest.IsZero()) {
-      MoveMouseToPlayer(closest);
+void Aimbot::MoveMouseToPosition(const Vector3& position) {
+  if (position.IsZero()) return;
+
+  // Calculate movement needed
+  float dx = position.x - screenCenter.x;
+  float dy = position.y - screenCenter.y;
+
+  // Apply smoothing
+  if (globals::AimbotUseSmoothing) {
+    float smooth = AimbotUtils::clamp(globals::AimbotSmoothAmount, 0.01f, 1.0f);
+    dx *= smooth;
+    dy *= smooth;
+  }
+
+  // Apply mouse sensitivity
+  dx *= globals::MouseSensitivity;
+  dy *= globals::MouseSensitivity;
+
+  // Prevent micro movements
+  if (fabs(dx) < 0.1f && fabs(dy) < 0.1f) return;
+
+  // Use mouse_event for movement
+  mouse_event(MOUSEEVENTF_MOVE, static_cast<int>(dx), static_cast<int>(dy), 0,
+              0);
+}
+
+void Aimbot::AimbotThread() {
+  while (running) {
+    // Sleep to reduce CPU usage
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    if (!globals::Aimbot || !(GetAsyncKeyState(globals::AimbotKey) & 0x8000)) {
+      continue;
     }
+
+    // Update FOV squared in case it changed
+    fovSquared = globals::AimbotFovSize * globals::AimbotFovSize;
+
+    // Get game data
+    auto gameData = entityManager.GetGameData();
+    if (!gameData.valid) continue;
+
+    // Find and aim at closest target
+    Vector3 target = findClosestTarget(gameData);
+    if (!target.IsZero()) {
+      MoveMouseToPosition(target);
+    }
+  }
+}
+
+void Aimbot::Start() {
+  if (running) return;
+
+  running = true;
+  aimbotThread = std::thread(&Aimbot::AimbotThread, this);
+
+  // Set thread priority to below normal to reduce impact on game performance
+  SetThreadPriority(aimbotThread.native_handle(), THREAD_PRIORITY_BELOW_NORMAL);
+}
+
+void Aimbot::Stop() {
+  running = false;
+  if (aimbotThread.joinable()) {
+    aimbotThread.join();
   }
 }

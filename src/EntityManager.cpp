@@ -28,7 +28,7 @@ constexpr int ENTITY_LIST_INDEX_MASK = 0x1FF;
 // Precompute bone address offsets
 std::array<size_t, ESSENTIAL_BONES.size()> boneAddressOffsets;
 
-// ADDED: View matrix validation
+
 bool IsViewMatrixValid(const ViewMatrix_t& matrix) {
   // Check for NaN, infinity, or obviously invalid values
   for (int i = 0; i < 4; i++) {
@@ -55,7 +55,7 @@ bool IsViewMatrixValid(const ViewMatrix_t& matrix) {
   return true;
 }
 
-// ADDED: Try multiple view matrix offsets
+// tries multiple viewmatrixs 
 ViewMatrix_t ReadViewMatrixWithRetry(Memory& mem, uintptr_t client) {
   constexpr std::array<uintptr_t, 4> VIEW_MATRIX_OFFSETS = {
       offsets::ViewMatrix, offsets::ViewMatrix + 0x40,
@@ -210,13 +210,13 @@ std::array<CBoneData, globals::MAX_BONES> DataManager::GetInterpolatedBones(
   // Use std::clamp for better performance
   alpha = std::clamp(alpha, 0.0f, 1.0f);
 
-  // Only interpolate essential bones instead of all MAX_BONES
+  // Only interpolate essential bones 
   for (int boneId : ESSENTIAL_BONES) {
     if (boneId < globals::MAX_BONES &&
         !currentBones[boneId].location.IsZero() &&
-        currentBones[boneId].location.IsValid()) {  // ADDED: Validation
+        currentBones[boneId].location.IsValid()) {  //  Validation
       if (!previousBones[boneId].location.IsZero() &&
-          previousBones[boneId].location.IsValid()) {  // ADDED: Validation
+          previousBones[boneId].location.IsValid()) {  //  Validation
         interpolatedBones[boneId].location =
             Vector3::Lerp(previousBones[boneId].location,
                           currentBones[boneId].location, alpha);
@@ -256,7 +256,7 @@ uintptr_t DataManager::GetEntityPawn(int index, uintptr_t entityList) {
 
 void DataManager::UpdateLoop() {
   auto lastFrameTime = system_clock::now();
-  static ViewMatrix_t lastValidViewMatrix;  // ADDED: Cache last good matrix
+  static ViewMatrix_t lastValidViewMatrix;  //  Cache last good matrix
 
   while (running_) {
     GameData newData{};
@@ -370,7 +370,7 @@ void DataManager::UpdateLoop() {
                           ? entity.bones[6].location
                           : entityOrigin + Vector3{0, 0, 72.0f};
 
-        newData.entities.push_back(std::move(entity));  // Use move semantics
+        newData.entities.push_back(std::move(entity));  //  move semantics
       }
 
       newData.valid = true;
@@ -386,14 +386,14 @@ void DataManager::UpdateLoop() {
     // Update game data
     {
       std::lock_guard<std::mutex> lock(dataMutex_);
-      gameData_ = std::move(newData);  // Use move semantics
+      gameData_ = std::move(newData);  // move semantics
     }
 
     // Precise sleep timing
     auto now = system_clock::now();
     auto elapsed = duration_cast<milliseconds>(now - lastFrameTime);
     if (elapsed < std::chrono::milliseconds(4)) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(4) - elapsed);
+      std::this_thread::sleep_for(std::chrono::milliseconds(2) - elapsed);
     }
     lastFrameTime = now;
   }

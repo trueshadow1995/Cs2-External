@@ -1,12 +1,12 @@
 #pragma once
 #include <d3d11.h>
 #include <windows.h>
-
+#include "../Headers/Aimbot.h"
 #include <chrono>
 #include "../Headers/Aimbot.h"  // ADD THIS LINE
 #include "../Headers/EntityDataManager.h"
 #include "../Headers/Memory.h"
-
+#include "../Headers/FovVisuals.h"
 class Overlay {
  public:
   Overlay(Memory& memory);  
@@ -16,11 +16,14 @@ class Overlay {
   void Run();
   void Shutdown();
 
+  void DrawDebugTest();
+  void StartAimbot();
+  void StopAimbot();
  private:
   HINSTANCE hInstance;
   HWND hwnd;
   bool running;
-  Aimbot* aimbot;  // ADD THIS MEMBER
+  Aimbot* aimbot;  
 
 
   IDXGISwapChain* swapChain;

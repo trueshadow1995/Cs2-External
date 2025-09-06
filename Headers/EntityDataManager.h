@@ -21,8 +21,8 @@ struct EntityInfo {
   Vector3 head{};
   std::array<CBoneData, globals::MAX_BONES> bones{};
   uint64_t lastUpdate = 0;
-  std::string name;       // Added for player name
-  float distance = 0.0f;  // Added for distance to local player
+  std::string name;       
+  float distance = 0.0f;  
 };
 
 struct GameData {
