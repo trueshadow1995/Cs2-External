@@ -5,7 +5,7 @@
 #include <chrono>
 #include <iostream>
 
-// Helper functions
+
 namespace AimbotUtils {
 inline float clamp(float value, float minVal, float maxVal) {
   return (value < minVal) ? minVal : (value > maxVal) ? maxVal : value;
@@ -16,7 +16,7 @@ inline float distanceSquared(float x1, float y1, float x2, float y2) {
   float dy = y2 - y1;
   return dx * dx + dy * dy;
 }
-}  // namespace AimbotUtils
+}  
 
 Aimbot::Aimbot(DataManager& entityManager) : entityManager(entityManager) {
   UpdateScreenDimensions();
@@ -26,7 +26,7 @@ Aimbot::Aimbot(DataManager& entityManager) : entityManager(entityManager) {
 Aimbot::~Aimbot() { Stop(); }
 
 void Aimbot::UpdateScreenDimensions() {
-  // Get the game window dimensions instead of system metrics
+
   HWND gameWindow = FindWindowA(nullptr, "Counter-Strike 2");
   if (gameWindow) {
     RECT rect;
@@ -38,7 +38,7 @@ void Aimbot::UpdateScreenDimensions() {
     }
   }
 
-  // Fallback to system metrics if game window not found
+
   screenWidth = static_cast<float>(GetSystemMetrics(SM_CXSCREEN));
   screenHeight = static_cast<float>(GetSystemMetrics(SM_CYSCREEN));
   screenCenter = Vector3(screenWidth / 2.0f, screenHeight / 2.0f, 0.0f);
@@ -67,12 +67,12 @@ Vector3 Aimbot::findClosestTarget(const GameData& gameData) {
   for (const auto& entity : gameData.entities) {
     if (!IsValidTarget(entity, localPawn, localTeam)) continue;
 
-    // Use the pre-calculated head position from entity data
+    // Use the pre-calculated head pos
     Vector3 screenHead;
     if (entity.head.WorldToScreen(viewMatrix, screenWidth, screenHeight,
                                   screenHead) &&
         screenHead.z > 0) {
-      // Check if within FOV using squared distance for performance
+      // Check if within FOV 
       float distSq = AimbotUtils::distanceSquared(
           screenHead.x, screenHead.y, screenCenter.x, screenCenter.y);
 
@@ -100,7 +100,7 @@ void Aimbot::MoveMouseToPosition(const Vector3& position) {
     dy *= smooth;
   }
 
-  // Apply mouse sensitivity
+
   dx *= globals::MouseSensitivity;
   dy *= globals::MouseSensitivity;
 
@@ -124,7 +124,7 @@ void Aimbot::AimbotThread() {
     // Update FOV squared in case it changed
     fovSquared = globals::AimbotFovSize * globals::AimbotFovSize;
 
-    // Get game data
+  
     auto gameData = entityManager.GetGameData();
     if (!gameData.valid) continue;
 

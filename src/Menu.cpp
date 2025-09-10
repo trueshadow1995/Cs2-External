@@ -1,8 +1,6 @@
 ﻿#pragma once
 #include "../Headers/Menu.h"
 #define NOMINMAX
-
-// Define missing mouse button constants if not already defined
 #ifndef VK_XBUTTON1
 #define VK_XBUTTON1 0x05
 #define VK_XBUTTON2 0x06

@@ -126,31 +126,34 @@ void RenderEsp(Memory& mem, uintptr_t client, const EntityInfo& entity,
     const float right = centerX + boxWidth / 2;
     const float top = centerY - boxHeight / 2;
     const float bottom = centerY + boxHeight / 2;
-    const float cornerLength = boxHeight * CORNER_SIZE_RATIO;
+    const float cornerLength = boxWidth * CORNER_SIZE_RATIO;
 
-    // Top left corner
+
+    // Top-left corner
     drawList->AddLine(ImVec2(left, top), ImVec2(left + cornerLength, top),
-                      espColor, 1.0f);
+                      espColor);
     drawList->AddLine(ImVec2(left, top), ImVec2(left, top + cornerLength),
-                      espColor, 1.0f);
+                      espColor);
 
-    // Top right corner
+    // Top-right corner
     drawList->AddLine(ImVec2(right, top), ImVec2(right - cornerLength, top),
-                      espColor, 1.0f);
+                      espColor);
     drawList->AddLine(ImVec2(right, top), ImVec2(right, top + cornerLength),
-                      espColor, 1.0f);
+                      espColor);
 
-    // Bottom left corner
+    // Bottom-left corner
     drawList->AddLine(ImVec2(left, bottom), ImVec2(left + cornerLength, bottom),
-                      espColor, 1.0f);
+                      espColor);
     drawList->AddLine(ImVec2(left, bottom), ImVec2(left, bottom - cornerLength),
-                      espColor, 1.0f);
+                      espColor);
 
-    // Bottom right corner
+    // Bottom-right corner
     drawList->AddLine(ImVec2(right, bottom),
-                      ImVec2(right - cornerLength, bottom), espColor, 1.0f);
+                      ImVec2(right - cornerLength, bottom),
+                      espColor);
     drawList->AddLine(ImVec2(right, bottom),
-                      ImVec2(right, bottom - cornerLength), espColor, 1.0f);
+                      ImVec2(right, bottom - cornerLength),
+                      espColor);
   }
   // NORMAL BOXES - Only if corner boxes are NOT enabled
   else if ((isTeammate && globals::TeammateEsp) ||
@@ -203,7 +206,7 @@ void RenderEsp(Memory& mem, uintptr_t client, const EntityInfo& entity,
   if (((isTeammate && globals::TeammateDistanceEsp) ||
        (!isTeammate && globals::EnemyDistanceEsp)) &&
       globals::DistanceEsp) {
-    char distanceText[16];
+    char distanceText[30];
     snprintf(distanceText, sizeof(distanceText), "%.0fm", entity.distance);
 
     // Center text horizontally
@@ -216,7 +219,7 @@ void RenderEsp(Memory& mem, uintptr_t client, const EntityInfo& entity,
     if (((isTeammate && globals::TeammateNameEsp) ||
          (!isTeammate && globals::EnemyNameEsp)) &&
         globals::NameEsp && !entity.name.empty()) {
-      textY = topLeft.y - 30.0f;  // Position above the name
+      textY = topLeft.y - 27.0f;  // Position above the name
     } else {
       textY = topLeft.y - 15.0f;  // Position above the box
     }

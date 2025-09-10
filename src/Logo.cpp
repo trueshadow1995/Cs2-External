@@ -4,7 +4,6 @@
 #include <D3DX11tex.h>
 #include "../Headers/Logo.h"
 
-
 namespace LogoHelper {
 static ID3D11ShaderResourceView* logoTexture = nullptr;
 static ImVec2 g_logoSize(100, 100);
