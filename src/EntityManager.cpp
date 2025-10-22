@@ -236,7 +236,7 @@ uintptr_t DataManager::GetEntityPawn(int index, uintptr_t entityList) {
     if (!listEntry) return 0;
 
     uintptr_t controller = mem_.Read<uintptr_t>(
-        listEntry + (0x78 * (index & ENTITY_LIST_INDEX_MASK)));
+        listEntry + (0x70 * (index & ENTITY_LIST_INDEX_MASK)));
     if (!controller) return 0;
 
     uint32_t pawnHandle = mem_.Read<uint32_t>(controller + offsets::m_hPawn);
@@ -248,7 +248,7 @@ uintptr_t DataManager::GetEntityPawn(int index, uintptr_t entityList) {
     if (!listEntry2) return 0;
 
     return mem_.Read<uintptr_t>(listEntry2 +
-                                (0x78 * (pawnHandle & ENTITY_LIST_INDEX_MASK)));
+                                (0x70 * (pawnHandle & ENTITY_LIST_INDEX_MASK)));
   } catch (...) {
     return 0;
   }
@@ -265,35 +265,35 @@ void DataManager::UpdateLoop() {
             .count();
 
     try {
-      // Read local player
+     
       uintptr_t localPawn =
-          mem_.Read<uintptr_t>(client_ + offsets::LocalPlayerPawn);
+          mem_.Read<uintptr_t>(client_ + offsets::dwLocalPlayerPawn);
       if (!localPawn) {
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
         continue;
       }
 
-      // Batch read local player data
+     
       Vector3 localOrigin =
           mem_.Read<Vector3>(localPawn + offsets::m_vOldOrigin);
 
-      // CHANGED: Use the new view matrix reading function
+     
       newData.viewMatrix = ReadViewMatrixWithRetry(mem_, client_);
 
       newData.localTeam = mem_.Read<int>(localPawn + offsets::m_iTeamNum);
       newData.localPlayerPawn = localPawn;
       newData.localOrigin = localOrigin;
 
-      // ADDED: Validate local origin
+  
       if (localOrigin.IsZero() || !localOrigin.IsValid() ||
           std::abs(localOrigin.x) > 100000.0f ||
           std::abs(localOrigin.y) > 100000.0f) {
-        continue;  // Skip frame if origin is invalid
+        continue;  
       }
 
       // Entity list
       uintptr_t entityList =
-          mem_.Read<uintptr_t>(client_ + offsets::EntityList);
+          mem_.Read<uintptr_t>(client_ + offsets::dwEntityList);
       if (!entityList) continue;
 
       // Pre-allocate to avoid reallocations
@@ -317,14 +317,14 @@ void DataManager::UpdateLoop() {
           continue;
         }
 
-        // Read player name from controller only if needed
+        // Read player name from controller 
         std::string playerName = "Player";
         if (globals::NameEsp) {
           uintptr_t listEntry = mem_.Read<uintptr_t>(
               entityList + (0x8 * (i >> ENTITY_LIST_INDEX_SHIFT)) + 0x10);
           if (listEntry) {
             uintptr_t controller = mem_.Read<uintptr_t>(
-                listEntry + (0x78 * (i & ENTITY_LIST_INDEX_MASK)));
+                listEntry + (0x70 * (i & ENTITY_LIST_INDEX_MASK)));
             if (controller) {
               char nameBuffer[32] = {0};  // Reduced buffer size
               mem_.Read(controller + 0x6E8, nameBuffer, sizeof(nameBuffer));
@@ -370,15 +370,15 @@ void DataManager::UpdateLoop() {
                           ? entity.bones[6].location
                           : entityOrigin + Vector3{0, 0, 72.0f};
 
-        newData.entities.push_back(std::move(entity));  //  move semantics
+        newData.entities.push_back(std::move(entity));  // move semantics
       }
 
       newData.valid = true;
       lastValidViewMatrix =
-          newData.viewMatrix;  // UPDATE: Cache the good matrix
+          newData.viewMatrix;  
 
     } catch (...) {
-      // On error, use last valid view matrix
+      
       newData.viewMatrix = lastValidViewMatrix;
       newData.valid = false;
     }
