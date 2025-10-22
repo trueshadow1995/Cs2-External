@@ -15,5 +15,6 @@
 4 Sept -> fixed some shit update menu again, aimbot started 
 
 
-<img width="1870" height="856" alt="image" src="https://github.com/user-attachments/assets/6162b6d8-8e5d-49b8-8096-07f774b1394a" />
+<img width="1877" height="854" alt="image" src="https://github.com/user-attachments/assets/5527fc5b-e17e-46d6-9ea1-7d5463a6eb21" />
+
 
